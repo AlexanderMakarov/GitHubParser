@@ -7,4 +7,4 @@ __pycache__/
 .idea
 
 # Project specific.
-task.py
+config.py
