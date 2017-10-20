@@ -1,18 +1,21 @@
 #!/usr/bin/env python
 
-# Parses repo. Creds and data in config.properties file
-# username=<GitHub account name>
-# password=<GitHub account password>
-# repo=<GitHub repo to parse name>
-# file=<file name to parse dat into>
+# Parses repo. Creds and data in config.py file
+#accounts=[["username", "password"]]
+#is_analyse=False
+#repo="SmartsheetTests"
+#repo_owner="akvelon"
+#file="SmartsheetTests"
 
 import sys
+from datetime import datetime
 import threading
 import config
 import github3
 import analyzer
+from raw_comment import RawComment
 
-
+"""
 github = github3.login(config.username, config.password)
 repo = github.repository(config.repo_owner, config.repo)
 count = 0
@@ -22,31 +25,94 @@ for issue in repo.pull_requests(state="closed"):
     if count > 10:
         break
 print("retelimit=%d" % repo.ratelimit_remaining)
-
 """
-def parse_task(prefix):
-    pass
+
+
+class Task:
+    def __init__(self, account):
+        self.username = account[0]
+        self.password = account[1]
+        self.start = 0
+        self.end = 0
+        self.name = self.username
+        self.result = []
 
 
 def save_in_bd(comment):
     pass
 
 
-def parse(task):
+def get_raw_pr_data(pr_index, repo):
+    pr = repo.pull_request(pr_index) # PullRequest class
+    counter = 0
+    comments = []
+    for rc in pr.review_comments():
+        counter += 1
+        #data += "  " + rc.as_json() + "\n"
+        comments.append(RawComment(rc.body_text, rc.body, rc.html_url['href'], rc.path, rc.original_position, rc.diff_hunk))
+    return comments
+    #return "%d: %s, %d comments\n%s" % (pr.number, pr.title, counter, data)
+
+
+def get_prs(is_analyse, task):
     github = github3.login(task.username, task.password)
     repo = github.repository(config.repo_owner, config.repo)
-    for i in range(task.from, task.to):
-        pr = repo.pull_request(i)
-        comment = analyzer.parse(pr)
-        save_in_bd(comment)
-    print("%s done" % task.name)
+    for pr_index in range(task.start, task.end):
+        raw_comments = get_raw_pr_data(pr_index, repo)
+        if is_analyse:
+            for raw_comment in raw_comments:
+                comment = analyzer.parse(raw_comment)
+                #save_in_bd_comment(comment) TODO
+                task.result.append(comment)
+        else:
+            task.result.extend(raw_comments)
+    print("%s task done, ratelimit_remaining=%d" % (task.name, repo.ratelimit_remaining))
 
 
-threads = []
-config_prefixes = config.accounts.split(',')
-for prefix in config_prefixes:
-    account = parse_task(prefix)
-    thread = Thread(prefix, parse, task)
-number = len(threads)
-print("All %d threads gone, wait %d minutes" % (number, number * MAGIC))
-"""
+def get_from_github():
+    tasks = []
+    for account in config.accounts:
+        tasks.append(Task(account))
+
+    # Get prs count and all pull requests.
+    first_task = tasks[0]
+    github = github3.login(first_task.username, first_task.password)
+    repo = github.repository(config.repo_owner, config.repo)
+    prs = repo.pull_requests(state="closed")
+
+    # Calculate count of prs per task. Don't handle cases when unmerged PR's not last.
+    prs_count = 10#prs.count
+    tasks_count = len(tasks)
+    prs_per_task = prs_count // tasks_count
+    print("Split %d PRs from %s repo per %d tasks by %d pts" % (prs_count, config.repo, tasks_count, prs_per_task))
+
+    # Split prs by tasks and make threads.
+    threads = []
+    prs_counter = 0
+    for task in tasks:
+        task.start = prs_counter
+        task.end = prs_counter + prs_per_task
+        task.name = "%s[%d..%d]" % (task.username, task.start, task.end)
+        thread = threading.Thread(name=task.name, target=get_prs, args=[config.is_analyse, task])
+        threads.append(thread)
+        prs_counter += prs_per_task
+        thread.start()
+    threads_number = len(threads)
+    estimate = prs_per_task * (10 if config.is_analyse else 0.8) # 10, 2 - correct
+    print("All %d threads started, wait %d seconds" % (threads_number, estimate))
+    for thread in threads:
+        thread.join()
+    result = []
+    for task in tasks:
+        result.extend(task.result)
+    return result
+
+
+# Entry point.
+time1 = datetime.today()
+comments = get_from_github()
+time2 = datetime.today()
+print("Received %d comments for %s" % (len(comments), time2 - time1))
+print("------------------")
+for item in comments:
+    print("  %d: %s" % (item.parse_pr_number(), item))
