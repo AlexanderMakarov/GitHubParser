@@ -14,6 +14,7 @@ import config
 import github3
 import analyzer
 from raw_comment import RawComment
+import database
 
 """
 github = github3.login(config.username, config.password)
@@ -38,7 +39,7 @@ class Task:
         self.result = []
 
 
-def save_in_bd(comment):
+def save_in_bd_raw_comments(comments, file_name):
     pass
 
 
@@ -48,10 +49,8 @@ def get_raw_pr_data(pr_index, repo):
     comments = []
     for rc in pr.review_comments():
         counter += 1
-        #data += "  " + rc.as_json() + "\n"
         comments.append(RawComment(rc.body_text, rc.body, rc.html_url['href'], rc.path, rc.original_position, rc.diff_hunk))
     return comments
-    #return "%d: %s, %d comments\n%s" % (pr.number, pr.title, counter, data)
 
 
 def get_prs(is_analyse, task):
@@ -80,15 +79,17 @@ def get_from_github():
     repo = github.repository(config.repo_owner, config.repo)
     prs = repo.pull_requests(state="closed")
 
+    print(repo.readme())
+
     # Calculate count of prs per task. Don't handle cases when unmerged PR's not last.
-    prs_count = 10#prs.count
+    prs_count = prs.count
     tasks_count = len(tasks)
     prs_per_task = prs_count // tasks_count
     print("Split %d PRs from %s repo per %d tasks by %d pts" % (prs_count, config.repo, tasks_count, prs_per_task))
 
     # Split prs by tasks and make threads.
     threads = []
-    prs_counter = 0
+    prs_counter = 1
     for task in tasks:
         task.start = prs_counter
         task.end = prs_counter + prs_per_task
@@ -111,8 +112,9 @@ def get_from_github():
 # Entry point.
 time1 = datetime.today()
 comments = get_from_github()
+#comments = [RawComment("a", "b", "c", "d", 1, "f"), RawComment("a", "b", "c", "d", 2, "f")]
 time2 = datetime.today()
 print("Received %d comments for %s" % (len(comments), time2 - time1))
-print("------------------")
-for item in comments:
-    print("  %d: %s" % (item.parse_pr_number(), item))
+database.raw_comments_to_db(comments, config.db_file)
+time3 = datetime.today()
+print("Saved %d comments for %s" % (len(comments), time3 - time2))
