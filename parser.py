@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 
-# Parses repo. Creds and data in config.py file
-#accounts=[["username", "password"]]
+# Parses repo. Python 3 only! One account GitHub API limits allow parse about 4700 pull requests.
+# Creds and data in config.py file:
+#accounts=[["username", "password"], ...]
 #is_analyse=False
 #repo="SmartsheetTests"
 #repo_owner="akvelon"
-#file="SmartsheetTests"
+#db_file="SmartsheetTests.sqlite"
 
 import sys
 from datetime import datetime
@@ -15,18 +16,6 @@ import github3
 import analyzer
 from raw_comment import RawComment
 import database
-
-"""
-github = github3.login(config.username, config.password)
-repo = github.repository(config.repo_owner, config.repo)
-count = 0
-for issue in repo.pull_requests(state="closed"):
-    print('{0}#{1.number}: "{1.title}"\n\t{1.html_url}'.format(repo, issue))
-    count += 1
-    if count > 10:
-        break
-print("retelimit=%d" % repo.ratelimit_remaining)
-"""
 
 
 class Task:
@@ -39,32 +28,32 @@ class Task:
         self.result = []
 
 
-def save_in_bd_raw_comments(comments, file_name):
-    pass
-
-
-def get_raw_pr_data(pr_index, repo):
-    pr = repo.pull_request(pr_index) # PullRequest class
-    counter = 0
-    comments = []
+def get_raw_comments_from_pr(pr):
+    pr_comments = []
     for rc in pr.review_comments():
-        counter += 1
-        comments.append(RawComment(rc.body_text, rc.body, rc.html_url['href'], rc.path, rc.original_position, rc.diff_hunk))
-    return comments
+        pr_comments.append(RawComment(rc.body_text, rc.body, rc.html_url['href'], rc.path, rc.original_position,
+                rc.diff_hunk))
+    return pr_comments
 
 
-def get_prs(is_analyse, task):
-    github = github3.login(task.username, task.password)
-    repo = github.repository(config.repo_owner, config.repo)
+def parse_comments(is_analyse, task, prs, repo):  # if is_analyse=False then task.result is [RawComment], else [Comment]
+    # TODO support few accounts in real!
+    #github = github3.login(task.username, task.password)
+    #repo = github.repository(config.repo_owner, config.repo)
     for pr_index in range(task.start, task.end):
-        raw_comments = get_raw_pr_data(pr_index, repo)
+        if pr_index >= len(prs):  # Avoid IndexError for last PR.
+            break
+        pr = prs[pr_index]
+        raw_comments = get_raw_comments_from_pr(pr)
         if is_analyse:
             for raw_comment in raw_comments:
                 comment = analyzer.parse(raw_comment)
-                #save_in_bd_comment(comment) TODO
                 task.result.append(comment)
         else:
             task.result.extend(raw_comments)
+        if (pr_index - task.start) % 10 == 0:  # Log progress.
+            print("%s: %d/%d ratelimit_remaining=%d" % (task.name, (pr_index - task.start), (task.end - task.start),
+                    repo.ratelimit_remaining))
     print("%s task done, ratelimit_remaining=%d" % (task.name, repo.ratelimit_remaining))
 
 
@@ -77,12 +66,12 @@ def get_from_github():
     first_task = tasks[0]
     github = github3.login(first_task.username, first_task.password)
     repo = github.repository(config.repo_owner, config.repo)
-    prs = repo.pull_requests(state="closed")
+    print("Wait about 30 seconds to get data about all closed prs in %s repo" % config.repo)
+    prs = list(repo.pull_requests(state="closed"))  # We need in count so iterate all at once. Order is reverses here!
 
-    print(repo.readme())
-
-    # Calculate count of prs per task. Don't handle cases when unmerged PR's not last.
-    prs_count = prs.count
+    # Calculate count of prs per task.
+    prs_count = len(prs)
+    print("prs_count=" + str(prs_count) + ", ratelimit_remaining=" + str(repo.ratelimit_remaining))
     tasks_count = len(tasks)
     prs_per_task = prs_count // tasks_count
     print("Split %d PRs from %s repo per %d tasks by %d pts" % (prs_count, config.repo, tasks_count, prs_per_task))
@@ -94,12 +83,12 @@ def get_from_github():
         task.start = prs_counter
         task.end = prs_counter + prs_per_task
         task.name = "%s[%d..%d]" % (task.username, task.start, task.end)
-        thread = threading.Thread(name=task.name, target=get_prs, args=[config.is_analyse, task])
+        thread = threading.Thread(name=task.name, target=parse_comments, args=[config.is_analyse, task, prs, repo])
         threads.append(thread)
         prs_counter += prs_per_task
         thread.start()
     threads_number = len(threads)
-    estimate = prs_per_task * (10 if config.is_analyse else 0.8) # 10, 2 - correct
+    estimate = prs_per_task * (1.0 if config.is_analyse else 0.5)  # 0.5 - actually 0.3, 1.0 TODO: 1.0 - correct
     print("All %d threads started, wait %d seconds" % (threads_number, estimate))
     for thread in threads:
         thread.join()
@@ -112,7 +101,6 @@ def get_from_github():
 # Entry point.
 time1 = datetime.today()
 comments = get_from_github()
-#comments = [RawComment("a", "b", "c", "d", 1, "f"), RawComment("a", "b", "c", "d", 2, "f")]
 time2 = datetime.today()
 print("Received %d comments for %s" % (len(comments), time2 - time1))
 database.raw_comments_to_db(comments, config.db_file)
