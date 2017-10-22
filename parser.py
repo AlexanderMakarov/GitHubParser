@@ -3,19 +3,24 @@
 # Parses repo. Python 3 only! One account GitHub API limits allow parse about 4700 pull requests.
 # Creds and data in config.py file:
 #accounts=[["username", "password"], ...]
-#is_analyse=False
+#is_parse=False
+#is_analyse=True
 #repo="SmartsheetTests"
 #repo_owner="akvelon"
 #db_file="SmartsheetTests.sqlite"
+#analyze_threads_count=4
 
 import sys
 from datetime import datetime
+from peewee import SqliteDatabase
 import threading
-import config
 import github3
+import config
 import analyzer
+import base_model
 from raw_comment import RawComment
-import database
+from comment import Comment
+# import database
 
 
 class Task:
@@ -31,12 +36,12 @@ class Task:
 def get_raw_comments_from_pr(pr):
     pr_comments = []
     for rc in pr.review_comments():
-        pr_comments.append(RawComment(rc.body_text, rc.body, rc.html_url['href'], rc.path, rc.original_position,
-                rc.diff_hunk))
+        pr_comments.append(RawComment(message=rc.body_text, message_with_format=rc.body, html_url=rc.html_url['href'],
+                path=rc.path, line=rc.original_position, diff_hunk=rc.diff_hunk))
     return pr_comments
 
 
-def parse_comments(is_analyse, task, prs, repo):  # if is_analyse=False then task.result is [RawComment], else [Comment]
+def parse_raw_comments(task, prs, repo):  # if is_analyse=False then task.result is [RawComment], else [Comment]
     # TODO support few accounts in real!
     #github = github3.login(task.username, task.password)
     #repo = github.repository(config.repo_owner, config.repo)
@@ -45,19 +50,14 @@ def parse_comments(is_analyse, task, prs, repo):  # if is_analyse=False then tas
             break
         pr = prs[pr_index]
         raw_comments = get_raw_comments_from_pr(pr)
-        if is_analyse:
-            for raw_comment in raw_comments:
-                comment = analyzer.parse(raw_comment)
-                task.result.append(comment)
-        else:
-            task.result.extend(raw_comments)
-        if (pr_index - task.start) % 10 == 0:  # Log progress.
+        task.result.extend(raw_comments)
+        if (pr_index - task.start) % 10 == 0:  # Log progress every 10 prs.
             print("%s: %d/%d ratelimit_remaining=%d" % (task.name, (pr_index - task.start), (task.end - task.start),
                     repo.ratelimit_remaining))
     print("%s task done, ratelimit_remaining=%d" % (task.name, repo.ratelimit_remaining))
 
 
-def get_from_github():
+def get_raw_comments_from_github():
     tasks = []
     for account in config.accounts:
         tasks.append(Task(account))
@@ -83,7 +83,7 @@ def get_from_github():
         task.start = prs_counter
         task.end = prs_counter + prs_per_task
         task.name = "%s[%d..%d]" % (task.username, task.start, task.end)
-        thread = threading.Thread(name=task.name, target=parse_comments, args=[config.is_analyse, task, prs, repo])
+        thread = threading.Thread(name=task.name, target=parse_raw_comments, args=[task, prs, repo])
         threads.append(thread)
         prs_counter += prs_per_task
         thread.start()
@@ -99,10 +99,35 @@ def get_from_github():
 
 
 # Entry point.
-time1 = datetime.today()
-comments = get_from_github()
-time2 = datetime.today()
-print("Received %d comments for %s" % (len(comments), time2 - time1))
-database.raw_comments_to_db(comments, config.db_file)
-time3 = datetime.today()
-print("Saved %d comments for %s" % (len(comments), time3 - time2))
+base_model.initialize(config.db_file)
+
+# Get RawComment-s.
+base_model.db.create_table(RawComment, safe=True)
+raw_comments = []
+if config.is_parse:
+    time1 = datetime.today()
+    raw_comments = get_raw_comments_from_github()
+    time2 = datetime.today()
+    print("Received %d raw comments for %s" % (len(raw_comments), time2 - time1))
+    #database.raw_comments_to_db(raw_comments, config.db_file)
+    (x.save() for x in raw_comments)
+    time3 = datetime.today()
+    print("Saved %d comments for %s" % (len(raw_comments), time3 - time2))
+else:
+    #raw_comments = database.get_raw_comments(config.db_file)
+    raw_comments = RawComment.select()
+
+# Get Comment-s.
+base_model.db.create_table(Comment, safe=True)
+comments = []
+if config.is_analyse:
+    time1 = datetime.today()
+    comments = analyzer.analyze_raw_comments(raw_comments, config.analyze_threads_count)
+    (x.save() for x in comments)
+    time2 = datetime.today()
+    print("Analyzed %d comments for %s" % (len(comments), time2 - time1))
+else:
+    #comments = database.get_comments(config.db_file)
+    comments = Comment.select()
+
+print("sdfsdf")
