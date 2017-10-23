@@ -1,7 +1,7 @@
 import re
 from peewee import *
-from comment import DeferredComment  # Import of Comment causes cross-import.
 from base_model import BaseModel
+#from comment import DeferredComment  # Import of Comment causes cross-import.
 
 
 PR_NUMBER_RE = re.compile(".+pull/(\d+).+")
@@ -22,7 +22,6 @@ class RawComment(BaseModel):
     path = TextField()
     line = IntegerField()
     diff_hunk = TextField()
-    comment = ForeignKeyField(DeferredComment, related_name="raw_comment", default=None)
 
     class Meta:
         db_table = "raw_comments"

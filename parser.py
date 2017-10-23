@@ -10,9 +10,7 @@
 #db_file="SmartsheetTests.sqlite"
 #analyze_threads_count=4
 
-import sys
 from datetime import datetime
-from peewee import SqliteDatabase
 import threading
 import github3
 import config
@@ -20,7 +18,6 @@ import analyzer
 import base_model
 from raw_comment import RawComment
 from comment import Comment
-# import database
 
 
 class Task:
@@ -98,36 +95,31 @@ def get_raw_comments_from_github():
     return result
 
 
-# Entry point.
-base_model.initialize(config.db_file)
+# Entry point. Initialize db.
+base_model.initialize(config.db_file, [RawComment, Comment])
 
 # Get RawComment-s.
-base_model.db.create_table(RawComment, safe=True)
 raw_comments = []
 if config.is_parse:
     time1 = datetime.today()
     raw_comments = get_raw_comments_from_github()
     time2 = datetime.today()
     print("Received %d raw comments for %s" % (len(raw_comments), time2 - time1))
-    #database.raw_comments_to_db(raw_comments, config.db_file)
+    base_model.bulk_insert(RawComment, raw_comments)
     (x.save() for x in raw_comments)
     time3 = datetime.today()
     print("Saved %d comments for %s" % (len(raw_comments), time3 - time2))
 else:
-    #raw_comments = database.get_raw_comments(config.db_file)
-    raw_comments = RawComment.select()
+    raw_comments = [x for x in RawComment.select()]
 
 # Get Comment-s.
-base_model.db.create_table(Comment, safe=True)
 comments = []
 if config.is_analyse:
     time1 = datetime.today()
     comments = analyzer.analyze_raw_comments(raw_comments, config.analyze_threads_count)
-    (x.save() for x in comments)
+    Comment.delete().execute()
+    base_model.bulk_insert(Comment, comments)
     time2 = datetime.today()
     print("Analyzed %d comments for %s" % (len(comments), time2 - time1))
 else:
-    #comments = database.get_comments(config.db_file)
     comments = Comment.select()
-
-print("sdfsdf")
