@@ -6,5 +6,5 @@ __pycache__/
 # Pycharm
 .idea
 
-# Project specific.
-config.py
+# Project specific (Flask).
+instance/

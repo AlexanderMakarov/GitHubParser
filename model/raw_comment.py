@@ -1,7 +1,6 @@
 import re
 from peewee import *
-from base_model import BaseModel
-#from comment import DeferredComment  # Import of Comment causes cross-import.
+from model.base_model import BaseModel
 
 
 PR_NUMBER_RE = re.compile(".+pull/(\d+).+")

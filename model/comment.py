@@ -1,7 +1,7 @@
 from enum import Enum
 from peewee import *
-from base_model import BaseModel
-from raw_comment import DeferredRawComment  # Import of RawComment causes cross-import.
+from model.base_model import BaseModel
+from model.raw_comment import DeferredRawComment  # Import of RawComment causes cross-import.
 
 
 class FileType(Enum):

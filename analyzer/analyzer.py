@@ -1,6 +1,7 @@
 import multiprocessing.pool
-from comment import *
-from raw_comment import RawComment
+from model.comment import *
+from model.raw_comment import RawComment
+from model.logger import log
 
 
 def analyze_raw_comment(rc: RawComment):
@@ -11,7 +12,7 @@ def analyze_raw_comment(rc: RawComment):
 def analyze_raw_comments(raw_comments: [RawComment], threads_number: int):
     rcs_count = len(raw_comments)
     estimate = rcs_count / threads_number * 0.0053  # TODO: magic number below - correct
-    print("Start %d threads to analyze %d raw comments. Wait about %d seconds" % (threads_number, rcs_count, estimate))
+    log("Start %d threads to analyze %d raw comments. Wait about %d seconds" % (threads_number, rcs_count, estimate))
     pool = multiprocessing.pool.ThreadPool(processes=threads_number)
     result = pool.map(analyze_raw_comment, raw_comments, chunksize=1)
     pool.close()

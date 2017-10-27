@@ -10,14 +10,11 @@
 #db_file="SmartsheetTests.sqlite"
 #analyze_threads_count=4
 
-from datetime import datetime
 import threading
 import github3
 import config
-import analyzer
-import base_model
-from raw_comment import RawComment
-from comment import Comment
+from model.raw_comment import RawComment
+from model.logger import log
 
 
 class Task:
@@ -49,9 +46,9 @@ def parse_raw_comments(task, prs, repo):  # if is_analyse=False then task.result
         raw_comments = get_raw_comments_from_pr(pr)
         task.result.extend(raw_comments)
         if (pr_index - task.start) % 10 == 0:  # Log progress every 10 prs.
-            print("%s: %d/%d ratelimit_remaining=%d" % (task.name, (pr_index - task.start), (task.end - task.start),
+            log("%s: %d/%d ratelimit_remaining=%d" % (task.name, (pr_index - task.start), (task.end - task.start),
                     repo.ratelimit_remaining))
-    print("%s task done, ratelimit_remaining=%d" % (task.name, repo.ratelimit_remaining))
+    log("%s task done, ratelimit_remaining=%d" % (task.name, repo.ratelimit_remaining))
 
 
 def get_raw_comments_from_github():
@@ -63,15 +60,15 @@ def get_raw_comments_from_github():
     first_task = tasks[0]
     github = github3.login(first_task.username, first_task.password)
     repo = github.repository(config.repo_owner, config.repo)
-    print("Wait about 30 seconds to get data about all closed prs in %s repo" % config.repo)
+    log("Wait about 30 seconds to get data about all closed prs in %s repo" % config.repo)
     prs = list(repo.pull_requests(state="closed"))  # We need in count so iterate all at once. Order is reverses here!
 
     # Calculate count of prs per task.
     prs_count = len(prs)
-    print("prs_count=" + str(prs_count) + ", ratelimit_remaining=" + str(repo.ratelimit_remaining))
+    log("prs_count=" + str(prs_count) + ", ratelimit_remaining=" + str(repo.ratelimit_remaining))
     tasks_count = len(tasks)
     prs_per_task = prs_count // tasks_count
-    print("Split %d PRs from %s repo per %d tasks by %d pts" % (prs_count, config.repo, tasks_count, prs_per_task))
+    log("Split %d PRs from %s repo per %d tasks by %d pts" % (prs_count, config.repo, tasks_count, prs_per_task))
 
     # Split prs by tasks and make threads.
     threads = []
@@ -86,7 +83,7 @@ def get_raw_comments_from_github():
         thread.start()
     threads_number = len(threads)
     estimate = prs_per_task * (1.0 if config.is_analyse else 0.5)  # 0.5 - actually 0.3, 1.0 TODO: 1.0 - correct
-    print("All %d threads started, wait %d seconds" % (threads_number, estimate))
+    log("All %d threads started, wait %d seconds" % (threads_number, estimate))
     for thread in threads:
         thread.join()
     result = []
@@ -94,7 +91,7 @@ def get_raw_comments_from_github():
         result.extend(task.result)
     return result
 
-
+"""
 # Entry point. Initialize db.
 base_model.initialize(config.db_file, [RawComment, Comment])
 
@@ -104,11 +101,10 @@ if config.is_parse:
     time1 = datetime.today()
     raw_comments = get_raw_comments_from_github()
     time2 = datetime.today()
-    print("Received %d raw comments for %s" % (len(raw_comments), time2 - time1))
+    log("Received %d raw comments for %s" % (len(raw_comments), time2 - time1))
     base_model.bulk_insert(RawComment, raw_comments)
-    (x.save() for x in raw_comments)
     time3 = datetime.today()
-    print("Saved %d comments for %s" % (len(raw_comments), time3 - time2))
+    log("Saved %d comments for %s" % (len(raw_comments), time3 - time2))
 else:
     raw_comments = [x for x in RawComment.select()]
 
@@ -120,6 +116,7 @@ if config.is_analyse:
     Comment.delete().execute()
     base_model.bulk_insert(Comment, comments)
     time2 = datetime.today()
-    print("Analyzed %d comments for %s" % (len(comments), time2 - time1))
+    log("Analyzed %d comments for %s" % (len(comments), time2 - time1))
 else:
     comments = Comment.select()
+"""
