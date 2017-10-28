@@ -1,7 +1,10 @@
 from enum import Enum
-from peewee import *
-from model.base_model import BaseModel
-from model.raw_comment import DeferredRawComment  # Import of RawComment causes cross-import.
+#from peewee import *
+#from model.base_model import BaseModel
+#from model.raw_comment import DeferredRawComment  # Import of RawComment causes cross-import.
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship
+from flask_appbuilder import Model
 
 
 class FileType(Enum):
@@ -26,18 +29,20 @@ class GitType(Enum):
     REMOVE = -1
 
 
-DeferredComment = DeferredRelation()
+#DeferredComment = DeferredRelation()
 
 
-class Comment(BaseModel):
-    id = PrimaryKeyField()
-    raw_comment = ForeignKeyField(DeferredRawComment, related_name="comment", default=None)
-    line = TextField()
-    file_type = IntegerField()
-    line_type = IntegerField()
+class Comment(Model):
+    __tablename__ = 'comments'
+    id = Column(Integer, primary_key=True)
+    raw_comment_id = Column(Integer, ForeignKey('raw_comments.id'))
+    #raw_comment = relationship("RawComment", uselist=False, back_populates="comment")
+    line = Column(String(), nullable=False)
+    file_type = Integer()
+    line_type = Integer()
 
-    class Meta:
-        db_table = "comments"
+    """class Meta:
+        db_table = "comments"""
 
 
     """def __init__(self, raw_comment: RawComment, line: str, git_type: GitType, file_type: FileType, line_type: LineType):
@@ -48,4 +53,4 @@ class Comment(BaseModel):
         self.line_type = line_type"""
 
 
-DeferredComment.set_model(Comment)
+#DeferredComment.set_model(Comment)

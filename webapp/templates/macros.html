@@ -1,0 +1,46 @@
+{% macro nav_link(endpoint, text) %}
+{% if request.endpoint.endswith(endpoint) %}
+    <li class="active"><a href="{{ url_for(endpoint) }}">{{text}}</a></li>
+{% else %}
+    <li><a href="{{ url_for(endpoint) }}">{{text}}</a></li>
+{% endif %}
+{% endmacro %}
+
+
+// https://gist.github.com/kerimdzhanov/f6f0d2b2a57720426211
+{% macro poll() %}
+<script>
+function poll(url, intervalMs, onMessage, noDataRedirect) {
+  var xhr = new XMLHttpRequest();
+
+  xhr.onreadystatechange = function() {
+    if (this.readyState != 4) return;
+
+    if (this.status == 200) {
+      onMessage(this.responseText);
+      if (this.responseText.length() > 0) setTimeout(poll, intervalMs)
+      else document.location.href = noDataRedirect;
+    } else {
+      onMessage("CANNOT GET PROGRESS FROM SERVER");
+    }
+  }
+  xhr.open("GET", url, true);
+  xhr.send();
+}
+</script>
+{% endmacro %}
+
+
+{% macro log(noDataRedirect) %}
+<script>
+function startLog(noDataRedirect) {
+  poll("/log", 1000, function(line) {
+     var terminal = document.getElementById('textareaLog');
+    terminal.appendChild(document.createTextNode(line));
+    terminal.appendChild(document.createElement('br'));
+    terminal.scrollTop = terminal.scrollHeight;
+  }, noDataRedirect);
+}
+</script>
+<textarea id="textareaLog" style="border: 1px solid grey; width:100%; height: 200px;"></textarea>
+{% endmacro %}

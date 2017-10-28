@@ -1,0 +1,16 @@
+{% from "macros.html" import nav_link with context %}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>{% block title %}{% endblock %}</title>
+    </head>
+    <body>
+        <ul class="nav-list">
+            {{ nav_link('home', 'Home') }}
+            {{ nav_link('comments', 'Comments') }}
+            {{ nav_link('prs', 'Pull Requests') }}
+        </ul>
+    {% block body %}
+    {% endblock %}
+    </body>
+</html>

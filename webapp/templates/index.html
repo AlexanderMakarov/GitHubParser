@@ -1,0 +1,19 @@
+{% from "macros.html" import poll with context %}
+{% from "macros.html" import log with context %}
+{% extends "appbuilder/base.html" %}
+{% block title %}Home{% endblock %}
+{% block body %}
+    {{ super() }}
+    <h2>Start page</h2>
+    <form action="/fetch/30" method="get">
+        <button name="fetchButton" type="submit">Fetch 30 closed pull requests from repository</button>
+    </form>
+    <form action="/fetch" method="get">
+        <button name="fetchButton" type="submit">Fetch all closed pull requests from repository</button>
+    </form>
+    <form action="/analyze" method="post">
+        <button name="analyzeButton" type="submit">Analyze all fetched pull requests</button>
+    </form>
+    {{ poll() }}
+    {{ log() }}
+{% endblock %}

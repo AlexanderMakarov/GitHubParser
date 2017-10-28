@@ -12,9 +12,8 @@
 
 import threading
 import github3
-import config
 from model.raw_comment import RawComment
-from model.logger import log
+from logging import Logger
 
 
 class Task:
@@ -30,12 +29,13 @@ class Task:
 def get_raw_comments_from_pr(pr):
     pr_comments = []
     for rc in pr.review_comments():
+        RawComment()
         pr_comments.append(RawComment(message=rc.body_text, message_with_format=rc.body, html_url=rc.html_url['href'],
                 path=rc.path, line=rc.original_position, diff_hunk=rc.diff_hunk))
     return pr_comments
 
 
-def parse_raw_comments(task, prs, repo):  # if is_analyse=False then task.result is [RawComment], else [Comment]
+def parse_raw_comments(task: Task, prs: [], repo, logger: Logger):  # if is_analyse=False then task.result is [RawComment], else [Comment]
     # TODO support few accounts in real!
     #github = github3.login(task.username, task.password)
     #repo = github.repository(config.repo_owner, config.repo)
@@ -46,29 +46,32 @@ def parse_raw_comments(task, prs, repo):  # if is_analyse=False then task.result
         raw_comments = get_raw_comments_from_pr(pr)
         task.result.extend(raw_comments)
         if (pr_index - task.start) % 10 == 0:  # Log progress every 10 prs.
-            log("%s: %d/%d ratelimit_remaining=%d" % (task.name, (pr_index - task.start), (task.end - task.start),
-                    repo.ratelimit_remaining))
-    log("%s task done, ratelimit_remaining=%d" % (task.name, repo.ratelimit_remaining))
+            logger.info("%s: %d/%d, ratelimit_remaining=%d", task.name, (pr_index - task.start),
+                    (task.end - task.start), repo.ratelimit_remaining)
+    logger.info("%s task done, ratelimit_remaining=%d", task.name, repo.ratelimit_remaining)
 
 
-def get_raw_comments_from_github():
+def get_raw_comments_from_github(logger: Logger, accounts: [], repo_name: str, repo_owner: str, count: int = -1):
     tasks = []
-    for account in config.accounts:
+    for account in accounts:
         tasks.append(Task(account))
 
     # Get prs count and all pull requests.
     first_task = tasks[0]
     github = github3.login(first_task.username, first_task.password)
-    repo = github.repository(config.repo_owner, config.repo)
-    log("Wait about 30 seconds to get data about all closed prs in %s repo" % config.repo)
-    prs = list(repo.pull_requests(state="closed"))  # We need in count so iterate all at once. Order is reverses here!
+    repo = github.repository(repo_owner, repo_name)
+
+    # We need in count so iterate all at once. Order is reverses here!
+    logger.info("Wait about 30 seconds to get data about all closed prs in %s repo, ratelimit_remaining=%d", repo_name,
+            repo.ratelimit_remaining)
+    prs = list(repo.pull_requests(state="closed", number=count))
 
     # Calculate count of prs per task.
     prs_count = len(prs)
-    log("prs_count=" + str(prs_count) + ", ratelimit_remaining=" + str(repo.ratelimit_remaining))
     tasks_count = len(tasks)
     prs_per_task = prs_count // tasks_count
-    log("Split %d PRs from %s repo per %d tasks by %d pts" % (prs_count, config.repo, tasks_count, prs_per_task))
+    logger.info("Split %d PRs from %s repo per %d task(s) by %d pts, ratelimit_remaining=%d", prs_count,
+            repo_name, tasks_count, prs_per_task, repo.ratelimit_remaining)
 
     # Split prs by tasks and make threads.
     threads = []
@@ -77,13 +80,12 @@ def get_raw_comments_from_github():
         task.start = prs_counter
         task.end = prs_counter + prs_per_task
         task.name = "%s[%d..%d]" % (task.username, task.start, task.end)
-        thread = threading.Thread(name=task.name, target=parse_raw_comments, args=[task, prs, repo])
+        thread = threading.Thread(name=task.name, target=parse_raw_comments, args=[task, prs, repo, logger])
         threads.append(thread)
         prs_counter += prs_per_task
         thread.start()
     threads_number = len(threads)
-    estimate = prs_per_task * (1.0 if config.is_analyse else 0.5)  # 0.5 - actually 0.3, 1.0 TODO: 1.0 - correct
-    log("All %d threads started, wait %d seconds" % (threads_number, estimate))
+    logger.info("All %d threads started, wait %d seconds", threads_number, prs_per_task * 0.5)
     for thread in threads:
         thread.join()
     result = []
