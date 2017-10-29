@@ -1,11 +1,16 @@
-from flask import render_template
+from flask import render_template, request
 from flask_appbuilder.models.sqla.interface import SQLAInterface
-from flask_appbuilder import AppBuilder, ModelView, expose, BaseView, has_access
+from flask_appbuilder import AppBuilder, ModelView, expose, BaseView, has_access, action
 from webapp import appbuilder, app, db
 from datetime import datetime
 from github_parser.parser import get_raw_comments_from_github
 from model.raw_comment import RawComment
 from model.comment import Comment
+import time
+import random
+import logging
+import logging.handlers
+from threading import Thread
 
 
 class HomeView(BaseView):
@@ -24,13 +29,33 @@ class HomeView(BaseView):
 class FetchView(BaseView):
     route_base = "/fetch"
     datamodel = SQLAInterface(RawComment)
+    memoryhandler = None  # Handler to get logs during "/log" calls.
+    # https://docs.python.org/3/library/logging.handlers.html#logging.handlers.MemoryHandler
 
-    @expose("/<int:count>")
-    @has_access
-    def fetch(self, count):
+    #@expose("/", methods=['POST'])
+    #@app.route("/fetch", methods=['POST'])
+    #@has_access
+    def fetch_with_params(self):
+        number = -1  # '-1' means "all".
+        if 'number' in request.form:
+            number = int(request.form['number'])
+        return self.fetch(number)
+
+    #@expose("/<int:count>")
+    #@has_access
+    def fetch(self, number):
+
+        print("Inside fetch handlerdd")  # TODO remove
+
+        # Prepare log grabber.
+        self.memoryhandler = logging.handlers.MemoryHandler(
+            capacity=1024 * 100,
+            flushLevel=logging.ERROR,
+            target=app.logger
+        )
         time1 = datetime.today()
         raw_comments = get_raw_comments_from_github(app.logger, app.config['ACCOUNTS'], app.config['REPO'],
-                app.config['REPO_OWNER'], count)
+                app.config['REPO_OWNER'], number)
         time2 = datetime.today()
         resulting_count = len(raw_comments)
         app.logger.info("Fetched %d raw comments in %d seconds", resulting_count, int(time2 - time1))
@@ -39,13 +64,62 @@ class FetchView(BaseView):
         app.logger.info("Saved %d raw comments into database", resulting_count)
         return "done"
 
+    #@app.route("/fetch/log")
+    #@has_access
+    def fetch_log(self):
 
-        # https://docs.python.org/3/library/logging.handlers.html#logging.handlers.MemoryHandler
-        """log("Received %d raw comments for %s" % (len(raw_comments), time2 - time1))
-        base_model.bulk_insert(RawComment, raw_comments)
-        time3 = datetime.today()
-        log("Saved %d comments for %s" % (len(raw_comments), time3 - time2))"""
+        print("Inside log handler")  # TODO remove
 
+        # TODO return and flush self.memoryhandler if not None
+
+        # text/html is required for most browsers to show the partial page immediately.
+        return "log %d" + random.random()
+
+
+memoryhandler = None
+
+
+@app.route("/fetch", methods=['POST'])
+def fetch_with_params():
+    number = -1  # '-1' means "all".
+    if 'number' in request.form:
+        number = int(request.form['number'])
+    thread = Thread(name="fetch rc", target=fetch, args=[number])
+    thread.start()
+    return "fetch: number=%d" % number
+
+
+def fetch(number):
+
+    print("Inside fetch handler")  # TODO remove
+
+    # Prepare log grabber.
+    global memoryhandler
+    memoryhandler = logging.handlers.MemoryHandler(  # TODO doesn't work - cannot read from it.
+        capacity=1024 * 100,
+        flushLevel=logging.ERROR,
+        target=app.logger
+    )
+    time1 = datetime.today()
+    raw_comments = get_raw_comments_from_github(app.logger, app.config['ACCOUNTS'], app.config['REPO'],
+            app.config['REPO_OWNER'], number)
+    time2 = datetime.today()
+    resulting_count = len(raw_comments)
+    app.logger.info("Fetched %d raw comments in %s seconds", resulting_count, time2 - time1)
+    db.session.add_all(raw_comments)
+    db.session.commit()
+    app.logger.info("Saved %d raw comments into database", resulting_count)
+    return "done"
+
+
+@app.route("/fetch/log")
+def fetch_log():
+
+    print("Inside /fetch/log handler")  # TODO remove
+
+    # TODO return and flush self.memoryhandler if not None
+
+    return "log %s" + str(random.random())
 
 
 class RawCommentView(ModelView):
@@ -82,8 +156,23 @@ class PullRequestsView(ModelView):
         return "prs/" + str(pr_id)
 
 
+class LogView(BaseView):
+    route_base = "/log"
+
+    @app.route("/log")
+    def log(self):
+
+        print("Inside log handler")  # TODO remove
+
+        # TODO make log provider
+
+        # text/html is required for most browsers to show the partial page immediately.
+        return "log %d" + random.random()
+
+
 db.create_all()
 #appbuilder.add_view(HomeView, "Home", category="Home")
+appbuilder.add_view_no_menu(LogView())
 appbuilder.add_view(RawCommentView, "List fetched comments", category="Raw Comments")
 appbuilder.add_view(CommentView, "List Comments", category="Comments")
 appbuilder.add_view(PullRequestsView, "List Pull Requests", category="Pull Requests")

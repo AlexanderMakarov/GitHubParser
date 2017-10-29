@@ -4,16 +4,40 @@
 {% block title %}Home{% endblock %}
 {% block body %}
     {{ super() }}
-    <h2>Start page</h2>
-    <form action="/fetch/30" method="get">
-        <button name="fetchButton" type="submit">Fetch 30 closed pull requests from repository</button>
+    <div class="container">
+    <form id="fetch_form" action="/fetch" method="post" role="form">
+        <input id="number" name="number" type="number" value="3">'-1' means "all"
+        <button type="submit">Fetch closed pull requests from repository</button>
     </form>
+    <script>
+        $("#fetch_form").submit(function(e) {
+            console.log("prevent fetch_form")
+            $.ajax({
+                type: "POST",
+                url: "/fetch",
+                data: $("#fetch_form").serialize(), // Serializes the form's elements.
+                success: function(data) {
+                    console.log("startLog('/fetch/log', '/raw_comments')");
+                    startLog('/fetch/log', '/raw_comments')
+                },
+                error: function(error) {
+                    console.log(error);
+                    alert(error);
+                }
+            });
+            e.preventDefault(); // Don't execute the actual submit of the form.
+        });
+    </script>
     <form action="/fetch" method="get">
         <button name="fetchButton" type="submit">Fetch all closed pull requests from repository</button>
     </form>
     <form action="/analyze" method="post">
         <button name="analyzeButton" type="submit">Analyze all fetched pull requests</button>
     </form>
+    <form action="/log" method="get">
+        <button name="pofig" type="submit">Log</button>
+    </form>
     {{ poll() }}
     {{ log() }}
+    </div>
 {% endblock %}

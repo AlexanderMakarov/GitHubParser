@@ -18,7 +18,7 @@ function poll(url, intervalMs, onMessage, noDataRedirect) {
 
     if (this.status == 200) {
       onMessage(this.responseText);
-      if (this.responseText.length() > 0) setTimeout(poll, intervalMs)
+      if (this.responseText.length > 0) setTimeout(poll, intervalMs, url, intervalMs, onMessage, noDataRedirect)
       else document.location.href = noDataRedirect;
     } else {
       onMessage("CANNOT GET PROGRESS FROM SERVER");
@@ -31,15 +31,15 @@ function poll(url, intervalMs, onMessage, noDataRedirect) {
 {% endmacro %}
 
 
-{% macro log(noDataRedirect) %}
+{% macro log() %}
 <script>
-function startLog(noDataRedirect) {
-  poll("/log", 1000, function(line) {
-     var terminal = document.getElementById('textareaLog');
-    terminal.appendChild(document.createTextNode(line));
+function startLog(fromUrl, endDataRedirect) {
+  poll(fromUrl, 1000, function(line) {
+    var terminal = document.getElementById('textareaLog');
     terminal.appendChild(document.createElement('br'));
+    terminal.appendChild(document.createTextNode(line + "\n"));
     terminal.scrollTop = terminal.scrollHeight;
-  }, noDataRedirect);
+  }, endDataRedirect);
 }
 </script>
 <textarea id="textareaLog" style="border: 1px solid grey; width:100%; height: 200px;"></textarea>
