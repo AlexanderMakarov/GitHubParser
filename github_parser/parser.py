@@ -29,9 +29,8 @@ class Task:
 def get_raw_comments_from_pr(pr):
     pr_comments = []
     for rc in pr.review_comments():
-        RawComment()
-        pr_comments.append(RawComment(message=rc.body_text, message_with_format=rc.body, html_url=rc.html_url['href'],
-                path=rc.path, line=rc.original_position, diff_hunk=rc.diff_hunk))
+        pr_comments.append(RawComment(rc.body_text, rc.body, rc.html_url['href'], rc.path, rc.original_position,\
+                rc.diff_hunk, rc.updated_at))
     return pr_comments
 
 

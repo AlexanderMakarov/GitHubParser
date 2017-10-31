@@ -17,8 +17,8 @@
                 url: "/fetch",
                 data: $("#fetch_form").serialize(), // Serializes the form's elements.
                 success: function(data) {
-                    console.log("startLog('/fetch/log', '/raw_comments')");
-                    startLog('/fetch/log', '/raw_comments')
+                    //startLog('/fetch/log', '/raw_comments')
+                    startLog('/fetch/log')
                 },
                 error: function(error) {
                     console.log(error);
