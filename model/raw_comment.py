@@ -16,7 +16,7 @@ class RawComment(Model):
     id = Column(Integer, primary_key=True)
     message = Column(String(), nullable=False)
     message_with_format = Column(String(), nullable=False)
-    html_url = Column(String(), nullable=False)
+    html_url = Column(String(), nullable=False, unique=True)
     path = Column(String(), nullable=False)
     line = Column(String(), nullable=False)
     diff_hunk = Column(String(), nullable=False)
@@ -24,17 +24,6 @@ class RawComment(Model):
     comment_id = Column(Integer)
     #comment = relationship("Comment", backref="raw_comment")
     #comment = relationship("Comment", uselist=False, back_populates="raw_comment")
-
-
-    def __init__(self, message, message_with_format, html_url, path, line, diff_hunk, updated_at):
-        self.message = message
-        self.message_with_format = message_with_format
-        self.html_url = html_url
-        self.path = path
-        self.line = line
-        self.diff_hunk = diff_hunk
-        self.updated_at = updated_at
-        self.comment_id = 0  # Will be initialised after "analyze" phase.
 
     def __str__(self):
         return "RawComment '%s' at %s:%d" %(self.message, self.path, self.line)

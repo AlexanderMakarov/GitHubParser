@@ -1,12 +1,13 @@
 {% from "macros.html" import poll with context %}
 {% from "macros.html" import log with context %}
+<style>.navbar-inverse span.navbar-brand a{ color:#FFFFFF; }</style>{# fix for custom themes - app title color is equal to background #}
 {% extends "appbuilder/base.html" %}
 {% block title %}Home{% endblock %}
 {% block body %}
     {{ super() }}
     <div class="container">
     <form id="fetch_form" action="/fetch" method="post" role="form">
-        <input id="number" name="number" type="number" value="3">'-1' means "all"
+        <input id="number" name="number" type="number" value="20">&nbsp;'-1' means "all"&nbsp;&nbsp;&nbsp;&nbsp;
         <button type="submit">Fetch closed pull requests from repository</button>
     </form>
     <script>
@@ -28,14 +29,12 @@
             e.preventDefault(); // Don't execute the actual submit of the form.
         });
     </script>
-    <form action="/fetch" method="get">
-        <button name="fetchButton" type="submit">Fetch all closed pull requests from repository</button>
-    </form>
     <form action="/analyze" method="post">
         <button name="analyzeButton" type="submit">Analyze all fetched pull requests</button>
     </form>
-    <form action="/log" method="get">
-        <button name="pofig" type="submit">Log</button>
+    <form id="open_pr" action="/pr" method="post" role="form">
+        <input name="number" type="number" value="1717">&nbsp;&nbsp;&nbsp;&nbsp;
+        <button type="submit">Open specified pull request</button>
     </form>
     {{ poll() }}
     {{ log() }}

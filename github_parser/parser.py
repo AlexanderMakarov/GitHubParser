@@ -12,8 +12,22 @@
 
 import threading
 import github3
+from github3.repos.repo import Repository
 from model.raw_comment import RawComment
 from logging import Logger
+
+
+def get_repo(username: str, password: str, repo_owner: str, repo_name: str):
+    github = github3.login(username, password)
+    return github.repository(repo_owner, repo_name)
+
+
+def get_raw_comments_from_pr(pr):
+    pr_comments = []
+    for rc in pr.review_comments():
+        pr_comments.append(RawComment(message=rc.body_text, message_with_format=rc.body, html_url=rc.html_url['href'],\
+                path=rc.path, line=rc.original_position, diff_hunk=rc.diff_hunk, updated_at=rc.updated_at))
+    return pr_comments
 
 
 class Task:
@@ -26,15 +40,7 @@ class Task:
         self.result = []
 
 
-def get_raw_comments_from_pr(pr):
-    pr_comments = []
-    for rc in pr.review_comments():
-        pr_comments.append(RawComment(rc.body_text, rc.body, rc.html_url['href'], rc.path, rc.original_position,\
-                rc.diff_hunk, rc.updated_at))
-    return pr_comments
-
-
-def parse_raw_comments(task: Task, prs: [], repo, logger: Logger):  # if is_analyse=False then task.result is [RawComment], else [Comment]
+def parse_raw_comments(task: Task, prs: [], repo, logger: Logger):
     # TODO support few accounts in real!
     #github = github3.login(task.username, task.password)
     #repo = github.repository(config.repo_owner, config.repo)
@@ -57,8 +63,7 @@ def get_raw_comments_from_github(logger: Logger, accounts: [], repo_name: str, r
 
     # Get prs count and all pull requests.
     first_task = tasks[0]
-    github = github3.login(first_task.username, first_task.password)
-    repo = github.repository(repo_owner, repo_name)
+    repo = get_repo(first_task.username, first_task.password, repo_owner, repo_name)
 
     # We need in count so iterate all at once. Order is reverses here!
     logger.info("Wait about 30 seconds to get data about all closed prs in %s repo, ratelimit_remaining=%d", repo_name,
@@ -91,6 +96,21 @@ def get_raw_comments_from_github(logger: Logger, accounts: [], repo_name: str, r
     for task in tasks:
         result.extend(task.result)
     return result
+
+
+class PullRequest:
+    def __init__(self, number: int, link: str, status: str, diff: str):
+        self.number = number
+        self.link = link
+        self.status = status
+        self.diff = diff
+
+
+def fetch_pr_from_github(logger: Logger, account: [], repo_owner: str, repo_name: str, pr_number: int):
+    repo: Repository = get_repo(account[0], account[1], repo_owner, repo_name)
+    pr = repo.pull_request(pr_number)
+    return PullRequest(pr_number, pr.html_url, pr.state, pr.diff)
+
 
 """
 # Entry point. Initialize db.

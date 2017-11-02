@@ -3,9 +3,10 @@ from flask_appbuilder.models.sqla.interface import SQLAInterface
 from flask_appbuilder import AppBuilder, ModelView, expose, BaseView, has_access, action
 from webapp import appbuilder, app, db
 from datetime import datetime
-from github_parser.parser import get_raw_comments_from_github
+from github_parser.parser import get_raw_comments_from_github, PullRequest, fetch_pr_from_github
 from model.raw_comment import RawComment
 from model.comment import Comment
+from flask_wtf import CsrfProtect
 import time
 import random
 from logging import Handler
@@ -38,10 +39,12 @@ class BufferLogHandler(Handler):
         return result
 
 
+# TODO move all global to class.
 memoryhandler: BufferLogHandler = None
 fetch_status = 0  # 0 - not started yet, 1 - in progress, 2 - finished.
 
 
+# TODO add @has_access and separate by sessions.
 @app.route("/fetch", methods=['POST'])
 def fetch_with_params():
     number = -1  # '-1' means "all".
@@ -74,6 +77,7 @@ def fetch(number):
     return "done"
 
 
+# TODO add @has_access and separate by sessions.
 @app.route("/fetch/log")
 def fetch_log():
     logs = memoryhandler.get_buffer_and_reset()
@@ -90,12 +94,14 @@ class RawCommentView(ModelView):
     route_base = "/raw_comments"
     datamodel = SQLAInterface(RawComment)
     search_exclude_columns = ["id"]
+    page_size = 50
 
 
 class CommentView(ModelView):
     route_base = "/comments"
     datamodel = SQLAInterface(Comment)
     search_exclude_columns = ["id"]
+    page_size = 50
 
     @expose("/comments")
     def comments(self):
@@ -119,9 +125,24 @@ class PullRequestsView(ModelView):
     def pr(self, pr_id):
         return "prs/" + str(pr_id)
 
+csrf = CsrfProtect(app)
+class PullRequestView(BaseView):
+    route_base = "/pr"
+
+    @csrf.exempt
+    @has_access
+    #@appbuilder.app.route("/pr", methods=['POST'])
+    def open_pr(self):
+        pr_number = request.form["number"]
+        pr: PullRequest = fetch_pr_from_github(app.logger, app.config['ACCOUNTS'], app.config['REPO'],\
+                app.config['REPO_OWNER'], pr_number)
+        return render_template("pullrequest.html", pr_link=pr.link, pr_number=pr.number, pr_status=pr.status,\
+                pr_diff=pr.diff)
+
 
 db.create_all()
 #appbuilder.add_view(HomeView, "Home", category="Home")
+appbuilder.add_view_no_menu(PullRequestView())
 appbuilder.add_view(RawCommentView, "List fetched comments", category="Raw Comments")
 appbuilder.add_view(CommentView, "List Comments", category="Comments")
 appbuilder.add_view(PullRequestsView, "List Pull Requests", category="Pull Requests")

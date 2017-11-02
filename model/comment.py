@@ -35,10 +35,3 @@ class Comment(Model):
     line = Column(String(), nullable=False)
     file_type = Integer()
     line_type = Integer()
-
-    def __init__(self, raw_comment_id: int, line: str, git_type: GitType, file_type: FileType, line_type: LineType):
-        self.raw_comment_id = raw_comment_id
-        self.line = line
-        self.git_type = git_type
-        self.file_type = file_type
-        self.line_type = line_type

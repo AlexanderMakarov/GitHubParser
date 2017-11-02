@@ -1,0 +1,6 @@
+{% extends "appbuilder/base.html" %}
+{% block title %}<a href="{{ pr_link }}">Pull Request #{{ pr_number }}</a>, {{ pr_status }}, diff:{% endblock %}
+{% block body %}
+    {{ super() }}
+    <pre id="diffarea">{{ pr_diff }}</pre>
+{% endblock %}
