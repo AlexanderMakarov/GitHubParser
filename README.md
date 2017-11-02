@@ -15,3 +15,10 @@ Run flask app with "run.py".
 Use fabmanager (from flask appbuilder) to create admin user. On Windows it will be placed somewhere in "c:\Python36\Scripts\"
 
 Currently only "Fetch <number> raw comments" works on main page. "Raw Comments" and "Comments" works too (with default FAB behavior/style/etc.).
+
+Most important tasks:
+
+- [ ] Complete Pull Request page. Now for debug, not for code review
+- [ ] Implement connection with TensorFlow (load data from sqlite)
+- [ ] Start to make analyzer (search features in diff_hunk-s)
+- [ ] Implement **GitHub** Pull Request page (overlay for iframe or other way to do code review with tips from app)
