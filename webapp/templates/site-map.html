@@ -1,0 +1,8 @@
+{% block title %}Site map{% endblock %}
+{% block body %}
+<ul>
+{% for url, endpoint in links %}
+<li><a href="{{ url }}">{{ endpoint }}</a></li>
+{% endfor %}
+</ul>
+{% endblock %}

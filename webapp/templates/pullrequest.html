@@ -2,5 +2,7 @@
 {% block title %}<a href="{{ pr_link }}">Pull Request #{{ pr_number }}</a>, {{ pr_status }}, diff:{% endblock %}
 {% block body %}
     {{ super() }}
-    <pre id="diffarea">{{ pr_diff }}</pre>
+    {% for line in pr_diff %}
+    <pre id="line_{{ loop.index0 }}">{{ line }}</a></pre>
+    {% endfor %}
 {% endblock %}

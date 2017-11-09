@@ -1,4 +1,4 @@
-from flask import render_template, request
+from flask import render_template, request, url_for
 from flask_appbuilder.models.sqla.interface import SQLAInterface
 from flask_appbuilder import AppBuilder, ModelView, expose, BaseView, has_access, action
 from webapp import appbuilder, app, db
@@ -117,27 +117,39 @@ class PullRequestsView(ModelView):
     datamodel = SQLAInterface(Comment)
     search_exclude_columns = ["id"]
 
-    @expose("/prs")
-    def prs(self):
-        return "prs"
-
     @expose("/prs/<int:pr_id>")
     def pr(self, pr_id):
         return "prs/" + str(pr_id)
 
-csrf = CsrfProtect(app)
+
 class PullRequestView(BaseView):
     route_base = "/pr"
 
-    @csrf.exempt
     @has_access
-    #@appbuilder.app.route("/pr", methods=['POST'])
+    @expose("", methods=['POST'])
     def open_pr(self):
         pr_number = request.form["number"]
-        pr: PullRequest = fetch_pr_from_github(app.logger, app.config['ACCOUNTS'], app.config['REPO'],\
-                app.config['REPO_OWNER'], pr_number)
-        return render_template("pullrequest.html", pr_link=pr.link, pr_number=pr.number, pr_status=pr.status,\
-                pr_diff=pr.diff)
+        pr: PullRequest = fetch_pr_from_github(app.logger, app.config['ACCOUNTS'][0], app.config['REPO_OWNER'],\
+                app.config['REPO'], pr_number)
+        lines = str(pr.diff).split('\\n')
+        return render_template("pullrequest.html", base_template = appbuilder.base_template, appbuilder=appbuilder,\
+                pr_link=pr.link, pr_number=pr.number, pr_status=pr.status, pr_diff=lines)
+
+
+def has_no_empty_params(rule):
+    defaults = rule.defaults if rule.defaults is not None else ()
+    arguments = rule.arguments if rule.arguments is not None else ()
+    return len(defaults) >= len(arguments)
+
+
+@app.route("/site-map")
+def site_map():
+    links = []
+    for rule in app.url_map.iter_rules():
+        if "GET" in rule.methods and has_no_empty_params(rule):
+            url = url_for(rule.endpoint, **(rule.defaults or {}))
+            links.append((url, rule.endpoint))
+    return render_template("site-map.html", links=links)
 
 
 db.create_all()
@@ -146,3 +158,4 @@ appbuilder.add_view_no_menu(PullRequestView())
 appbuilder.add_view(RawCommentView, "List fetched comments", category="Raw Comments")
 appbuilder.add_view(CommentView, "List Comments", category="Comments")
 appbuilder.add_view(PullRequestsView, "List Pull Requests", category="Pull Requests")
+appbuilder.add_view_no_menu(PullRequestView)
