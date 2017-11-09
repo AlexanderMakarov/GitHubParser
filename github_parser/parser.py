@@ -109,7 +109,7 @@ class PullRequest:
 def fetch_pr_from_github(logger: Logger, account: [], repo_owner: str, repo_name: str, pr_number: int):
     repo: Repository = get_repo(account[0], account[1], repo_owner, repo_name)
     pr = repo.pull_request(pr_number)
-    return PullRequest(pr_number, pr.html_url, pr.state, pr.diff)
+    return PullRequest(pr_number, pr.html_url, pr.state, pr.diff())
 
 
 """
