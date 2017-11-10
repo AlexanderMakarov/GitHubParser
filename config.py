@@ -13,5 +13,5 @@ RECAPTCHA_PUBLIC_KEY = '6Ld-NDYUAAAAANOl1A_93iOpuRklYMErx8xApaGH'
 RECAPTCHA_PRIVATE_KEY = '6Ld-NDYUAAAAALYTZOJk7XBYHuGDelO3qZV1CjWY'  # I don't pay for it so it is not secret.
 #RECAPTCHA_OPTIONS = {'theme': 'white'}
 CSRF_ENABLED = True
-APP_NAME = "GitHub review Parser"
+APP_NAME = "GitHub Review Parser"
 APP_THEME = "flatly.css"

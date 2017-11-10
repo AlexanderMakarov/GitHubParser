@@ -1,7 +1,10 @@
+<style>.navbar-inverse span.navbar-brand a{ color:#FFFFFF; }</style>{# fix for custom themes - app title color is equal to background #}
 {% extends "appbuilder/base.html" %}
 {% block title %}<a href="{{ pr_link }}">Pull Request #{{ pr_number }}</a>, {{ pr_status }}, diff:{% endblock %}
 {% block body %}
     {{ super() }}
+Need to display lines in style "like on GitHub" with indentation from the right to allow to place marks from AI near.
+<br>
     {% for line in pr_diff %}
     <pre id="line_{{ loop.index0 }}">{{ line }}</a></pre>
     {% endfor %}
