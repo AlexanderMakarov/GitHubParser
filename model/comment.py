@@ -20,12 +20,6 @@ class LineType(Enum):
     SPLITTED = 7
 
 
-class GitType(Enum):
-    ADD = 1
-    UNCHANGED = 0
-    REMOVE = -1
-
-
 class Comment(Model):
     __tablename__ = 'comments'
     id = Column(Integer, primary_key=True)

@@ -1,20 +1,10 @@
-#!/usr/bin/env python
-
-# Parses repo. Python 3 only! One account GitHub API limits allow parse about 4700 pull requests.
-# Creds and data in config.py file:
-#accounts=[["username", "password"], ...]
-#is_parse=False
-#is_analyse=True
-#repo="SmartsheetTests"
-#repo_owner="akvelon"
-#db_file="SmartsheetTests.sqlite"
-#analyze_threads_count=4
-
 import threading
 import github3
+import re
 from github3.repos.repo import Repository
 from model.raw_comment import RawComment
 from logging import Logger
+from model.git_data import GitFile, GitLine, GitPiece
 
 
 def get_repo(username: str, password: str, repo_owner: str, repo_name: str):
@@ -31,6 +21,9 @@ def get_raw_comments_from_pr(pr):
 
 
 class Task:
+    """
+    Task for parsing raw comments from pull requests.
+    """
     def __init__(self, account):
         self.username = account[0]
         self.password = account[1]
@@ -98,7 +91,87 @@ def get_raw_comments_from_github(logger: Logger, accounts: [], repo_name: str, r
     return result
 
 
+DIFF_DIFF_RE = re.compile("diff --git a/(.+?)( b/)(.*)")
+
+
+def parse_git_diff_diff_line(line: str):
+    """
+    diff --git a/iOS/actions/ui/screens/sheet.js b/iOS/actions/ui/screens/sheet.js
+    """
+    match = DIFF_DIFF_RE.match(line)
+    if match and len(match.groups()) == 4:
+        return {"a_path": match.group(1), "b_path": match.group(3)}
+    return None
+
+
+DIFF_POSITION_RE = re.compile("@@ -(\d+),(\d+) +(\d+),(\d+) @@ (.*)")
+
+
+def parse_git_diff_position_line(line: str):
+    """
+    @@ -278,13 +278,15 @@ Sheet.tapRefresh = function() {
+    """
+    match = DIFF_POSITION_RE.match(line)
+    if match and len(match.groups()) == 4:
+        return GitPiece(int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4)), \
+                        match.group(5))
+    return None
+
+
+def parse_git_diff(diff: str):
+    """
+    Parses "git diff" output into list of 'GitFile' objects.
+    """
+    if diff.startswith("b'"):
+        diff = diff[2:-1]  # Trim "bytestring" format like [b'foo'] -> [foo]
+    lines = diff.split('\\n')
+    git_lines_counter = 5  # 5: diff, 4: index, 3: ---, 2: +++, 1: @@ (position), 0: regular line of patch.
+    piece: GitPiece = None
+    index_line = None
+    diff_data = None
+    pieces = [GitPiece]
+    files = [GitFile]
+    for i, line in enumerate(lines):
+
+        # Parse lines. Collect data into 'tmp_piece' and 'tmp_diff_data'.
+        if git_lines_counter > 0:
+            if git_lines_counter == 1:
+                tmp_piece = parse_git_diff_position_line(line)
+            elif git_lines_counter == 4:
+                index_line = line
+            elif git_lines_counter == 5:
+                tmp_diff_data = parse_git_diff_diff_line(line)
+            git_lines_counter -= 1
+        else:
+            # Try to parse from line "@@" string.
+            tmp_piece = parse_git_diff_position_line(line)
+            if tmp_piece is None:
+                # Try to parse from line "diff" string.
+                tmp_diff_data = parse_git_diff_diff_line(line)
+                if tmp_diff_data is None:
+                    # It is regular line.
+                    piece.lines.append(GitLine(line))
+
+        # Combine received data into 'pieces' and 'files'. Set 'tmp_piece'->'piece' and 'tmp_diff_data'->'diff_data'.
+        if tmp_piece and len(piece.lines) > 0:  # Check started new piece and previous not empty.
+            pieces.append(piece)
+            piece = tmp_piece
+        if tmp_diff_data:  # Check started new file.
+            if piece and len(piece.lines) > 0:  # Add pending piece.
+                pieces.append(piece)
+            if len(pieces) > 0:  # Check that there are pieces in this file.
+                files.append(GitFile(diff_data['b_path'], index_line, pieces))
+            diff_data = tmp_diff_data
+            git_lines_counter = 4
+            index_line = None
+    return files
+
+
+# TODO implement way to store 'PullRequest' or object like this in db. "Diff" should be stored as string.
 class PullRequest:
+    """
+    Pull request to display on site. Not connected to db (at least for now).
+    """
     def __init__(self, number: int, link: str, status: str, diff: str):
         self.number = number
         self.link = link
@@ -109,35 +182,6 @@ class PullRequest:
 def fetch_pr_from_github(logger: Logger, account: [], repo_owner: str, repo_name: str, pr_number: int):
     repo: Repository = get_repo(account[0], account[1], repo_owner, repo_name)
     pr = repo.pull_request(pr_number)
-    return PullRequest(pr_number, pr.html_url, pr.state, pr.diff())
+    diff: str = pr.diff()
+    return PullRequest(pr_number, pr.html_url, pr.state, diff)
 
-
-"""
-# Entry point. Initialize db.
-base_model.initialize(config.db_file, [RawComment, Comment])
-
-# Get RawComment-s.
-raw_comments = []
-if config.is_parse:
-    time1 = datetime.today()
-    raw_comments = get_raw_comments_from_github()
-    time2 = datetime.today()
-    log("Received %d raw comments for %s" % (len(raw_comments), time2 - time1))
-    base_model.bulk_insert(RawComment, raw_comments)
-    time3 = datetime.today()
-    log("Saved %d comments for %s" % (len(raw_comments), time3 - time2))
-else:
-    raw_comments = [x for x in RawComment.select()]
-
-# Get Comment-s.
-comments = []
-if config.is_analyse:
-    time1 = datetime.today()
-    comments = analyzer.analyze_raw_comments(raw_comments, config.analyze_threads_count)
-    Comment.delete().execute()
-    base_model.bulk_insert(Comment, comments)
-    time2 = datetime.today()
-    log("Analyzed %d comments for %s" % (len(comments), time2 - time1))
-else:
-    comments = Comment.select()
-"""

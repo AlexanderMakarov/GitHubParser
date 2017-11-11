@@ -131,6 +131,7 @@ class PullRequestView(BaseView):
                 app.config['REPO'], pr_number)
         lines = str(pr.diff).split('\\n')
         # TODO save PR's data into database (to check results on local data).
+        # TODO git_diff = parse_git_diff(pr.diff) and use lines and etc. from this detailed data.
         # Maybe better to parse all pull requests on start for this?
         return render_template("pullrequest.html", base_template = appbuilder.base_template, appbuilder=appbuilder,\
                 pr_link=pr.link, pr_number=pr.number, pr_status=pr.status, pr_diff=lines)
