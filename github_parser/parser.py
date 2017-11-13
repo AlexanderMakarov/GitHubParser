@@ -27,7 +27,7 @@ def get_pull_requests(logger: Logger, username: str, password: str, repo_name: s
     repo = get_repo(username, password, repo_owner, repo_name)
 
     # We need in count so iterate all at once. Order is reverses here!
-    required_time = 30 if count < 0 else 0.15 * count  # 0.15 - rough time for one pull request.
+    required_time = 30 if count < 0 else 0.03 * count  # 0.03 - rough time for one pull request.
     logger.info("Wait about %d seconds to get data about all pull requests in %s repo, ratelimit_remaining=%d", \
             required_time, repo_name, repo.ratelimit_remaining)
     return repo, list(repo.pull_requests(state="all", number=count))
@@ -121,7 +121,8 @@ def get_pull_requests_from_github(logger: Logger, accounts: [], repo_name: str, 
         prs_counter += prs_per_task
         thread.start()
     threads_number = len(threads)
-    logger.info("All %d threads started, wait %d seconds", threads_number, prs_per_task * 0.5)
+    required_time = 1.12 * prs_per_task  # 1.12 - rough time for one pull request.
+    logger.info("All %d threads started, wait %d seconds", threads_number, required_time)
     for thread in threads:
         thread.join()
     result = []

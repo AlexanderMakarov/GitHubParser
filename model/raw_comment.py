@@ -16,7 +16,7 @@ class RawComment(Model):
     id = Column(Integer, primary_key=True)
     message = Column(String, nullable=False)
     message_with_format = Column(String(), nullable=False)
-    html_url = Column(String, nullable=False, unique=True)
+    html_url = Column(String, nullable=False, unique=True)  # TODO satisfy on "save"!!!
     path = Column(String, nullable=False)
     line = Column(String, nullable=False)
     diff_hunk = Column(String, nullable=False)
