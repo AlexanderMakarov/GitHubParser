@@ -7,7 +7,7 @@
     <div class="container">
     <form id="fetch_form" action="/fetch" method="post" role="form">
         <input id="number" name="number" type="number" value="20">&nbsp;'-1' means "all"&nbsp;&nbsp;&nbsp;&nbsp;
-        <button type="submit">Fetch closed pull requests from repository</button>
+        <button type="submit">Fetch pull requests from repository</button>
     </form>
     <script>
         $("#fetch_form").submit(function(e) {
@@ -29,11 +29,11 @@
         });
     </script>
     <form action="/analyze" method="post">
-        <button name="analyzeButton" type="submit">Analyze all fetched pull requests</button>
+        <button name="analyzeButton" type="submit">TODO: Analyze all fetched pull requests</button>
     </form>
     <form id="open_pr" action="/pr" method="post" role="form">
         <input name="number" type="number" value="1717">&nbsp;&nbsp;&nbsp;&nbsp;
-        <button type="submit">Open specified pull request</button>
+        <button type="submit">Fetch and parse specified pull request</button>
     </form>
     {{ poll() }}
     {{ log() }}

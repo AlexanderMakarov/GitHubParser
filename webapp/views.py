@@ -3,7 +3,7 @@ from flask_appbuilder.models.sqla.interface import SQLAInterface
 from flask_appbuilder import AppBuilder, ModelView, expose, BaseView, has_access, action
 from webapp import appbuilder, app, db
 from datetime import datetime
-from github_parser.parser import get_raw_comments_from_github, PullRequest, fetch_pr_from_github
+from github_parser.parser import get_pull_requests_from_github, PullRequest, fetch_pr_from_github
 from model.raw_comment import RawComment
 from model.comment import Comment
 from flask_wtf import CsrfProtect
@@ -52,7 +52,7 @@ class FetchView(BaseView):
             number = int(request.form['number'])
         global fetch_status
         fetch_status = 1
-        thread = Thread(name="fetch rc", target=FetchView.fetch, args=[self, number])
+        thread = Thread(name="fetch_from_github", target=FetchView.fetch, args=[self, number])
         thread.start()
         return "fetch: number=%d" % number
 
@@ -62,8 +62,8 @@ class FetchView(BaseView):
         app.logger.addHandler(self.logs_keeper)
         self.fetch_status = 1
         time1 = datetime.today()
-        # Fetch comments from GitHub.
-        raw_comments = get_raw_comments_from_github(app.logger, app.config['ACCOUNTS'], app.config['REPO'],
+        # Fetch data from GitHub.
+        raw_comments = get_pull_requests_from_github(app.logger, app.config['ACCOUNTS'], app.config['REPO'],
                 app.config['REPO_OWNER'], number)
         time2 = datetime.today()
         resulting_count = len(raw_comments)
@@ -71,7 +71,7 @@ class FetchView(BaseView):
         # Save comments in db.
         db.session.add_all(raw_comments)
         db.session.commit()
-        app.logger.info("Saved %d raw comments into database", resulting_count)
+        app.logger.info("Saved %d pull requests into database", resulting_count)
         # Notify 'fetch_log' that process over.
         self.fetch_status = 2
         return "done"
@@ -79,6 +79,8 @@ class FetchView(BaseView):
     @has_access
     @expose("/log")
     def fetch_log(self):
+        if self.logs_keeper is None:
+            return "EOF"
         logs = self.logs_keeper.get_buffer_and_reset()
         result = ""
         for line in logs:
@@ -93,6 +95,7 @@ class RawCommentView(ModelView):
     datamodel = SQLAInterface(RawComment)
     search_exclude_columns = ["id"]
     page_size = 50
+    list_columns = ["message_with_format", "path", "updated_at"]
 
 
 class CommentView(ModelView):
@@ -112,15 +115,12 @@ class CommentView(ModelView):
 
 class PullRequestsView(ModelView):
     route_base = "/prs"
-    datamodel = SQLAInterface(Comment)
-    search_exclude_columns = ["id"]
-
-    @expose("/prs/<int:pr_id>")
-    def pr(self, pr_id):
-        return "prs/" + str(pr_id)
+    datamodel = SQLAInterface(PullRequest)
+    page_size = 50
+    list_columns = ["number", "state", "link"]
 
 
-class PullRequestView(BaseView):
+class PullRequestView(BaseView):  # TODO remove - use from database.
     route_base = "/pr"
 
     @has_access
@@ -134,7 +134,7 @@ class PullRequestView(BaseView):
         # TODO git_diff = parse_git_diff(pr.diff) and use lines and etc. from this detailed data.
         # Maybe better to parse all pull requests on start for this?
         return render_template("pullrequest.html", base_template = appbuilder.base_template, appbuilder=appbuilder,\
-                pr_link=pr.link, pr_number=pr.number, pr_status=pr.status, pr_diff=lines)
+                pr_link=pr.link, pr_number=pr.number, pr_status=pr.state, pr_diff=lines)
 
 
 class SiteMapView(BaseView):
