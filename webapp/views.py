@@ -23,6 +23,10 @@ class HomeView(BaseView):
 
 
 class BufferLogHandler(Handler):
+    """
+    Class to accumulate logs and return them by request.
+    """
+
     buffer_size = 100
     buffer = []
 
@@ -63,15 +67,49 @@ class FetchView(BaseView):
         self.fetch_status = 1
         time1 = datetime.today()
         # Fetch data from GitHub.
-        raw_comments = get_pull_requests_from_github(app.logger, app.config['ACCOUNTS'], app.config['REPO'],
+        pull_requests = get_pull_requests_from_github(app.logger, app.config['ACCOUNTS'], app.config['REPO'],
                 app.config['REPO_OWNER'], number)
+
+        """rc1 = RawComment(message="1", message_with_format="1", html_url="1",\
+                path="1", line=1, diff_hunk="1", updated_at="1")
+        rc2 = RawComment(message="2", message_with_format="2", html_url="2",\
+                path="2", line=2, diff_hunk="2", updated_at="2")
+        pull_requests = [PullRequest(number=1, link="1", state="1", diff="1", raw_comments=[rc1]), \
+                PullRequest(number=2, link="2", state="2", diff="2", raw_comments=[]), \
+                PullRequest(number=3, link="3", state="3", diff="3", raw_comments=[rc1, rc2])]"""
+
         time2 = datetime.today()
-        resulting_count = len(raw_comments)
-        app.logger.info("Fetched %d raw comments in %s seconds", resulting_count, time2 - time1)
+        resulting_count = len(pull_requests)
+        app.logger.info("Fetched %d pull requests in %s seconds", resulting_count, time2 - time1)
         # Save comments in db.
-        db.session.add_all(raw_comments)
+        db_pull_requests = db.session.query(PullRequest).all()
+        db_pull_requests_dict = dict()
+        for pr in db_pull_requests:
+            db_pull_requests_dict[pr.number] = pr
+        pull_requests_to_update = []
+        pull_requests_to_update_numbers = [int]
+        pull_requests_to_insert = []
+        for pr in pull_requests:
+            if pr.number in db_pull_requests_dict:
+                pull_requests_to_update.append(pr)
+                pull_requests_to_update_numbers.append(pr.number)
+            else:
+                pull_requests_to_insert.append(pr)
+        # Save unique PRs.
+        db.session.add_all(pull_requests_to_insert)
         db.session.commit()
-        app.logger.info("Saved %d pull requests into database", resulting_count)
+        # Update existing PRs if need.
+        if len(pull_requests_to_update) > 0:
+            for pr in pull_requests_to_update:  # TODO fix issue with adding one more row on update.
+                #db.session.query(PullRequest).filter(PullRequest.number == pr.number).\
+                #        update({"state": pr.state, "raw_comments": pr.raw_comments, "diff": pr.diff})
+                db_pr: PullRequest = db_pull_requests_dict[pr.number]
+                db_pr.state = pr.state
+                db_pr.raw_comments = pr.raw_comments
+                db_pr.diff = pr.diff
+        db.session.commit()
+        app.logger.info("Saved %d pull requests into database (%d inserted, %d updated)",\
+                resulting_count, len(pull_requests_to_insert), len(pull_requests_to_update))
         # Notify 'fetch_log' that process over.
         self.fetch_status = 2
         return "done"
@@ -118,6 +156,7 @@ class PullRequestsView(ModelView):
     datamodel = SQLAInterface(PullRequest)
     page_size = 50
     list_columns = ["number", "state", "link"]
+    related_views = [RawCommentView]
 
 
 class PullRequestView(BaseView):  # TODO remove - use from database.

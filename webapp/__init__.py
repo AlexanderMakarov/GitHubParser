@@ -13,4 +13,6 @@ app.config.from_pyfile('config.py')
 db = SQLA(app)
 appbuilder = AppBuilder(app, db.session, indexview=SiteIndexView)
 
+
+# Line below - entry point into "webapp" folder.
 from webapp import views
