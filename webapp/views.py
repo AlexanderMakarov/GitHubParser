@@ -43,10 +43,30 @@ class BufferLogHandler(Handler):
         return result
 
 
-class FetchView(BaseView):
-    route_base = "/fetch"
+class BaseWithLogs(BaseView):
     logs_keeper: BufferLogHandler = None
-    fetch_status = 0  # 0 - not started yet, 1 - in progress, 2 - finished.
+    progress_stage = 0  # 0 - not started yet, 1 - in progress, 2 - finished.
+
+    def init_logs_keeper(self):
+        if self.logs_keeper is None:
+            self.logs_keeper = BufferLogHandler()
+            app.logger.addHandler(self.logs_keeper)
+
+    def get_logs(self):
+        if self.logs_keeper is None:
+            return "EOF"
+        logs = self.logs_keeper.get_buffer_and_reset()
+        result = ""
+        for line in logs:
+            result += str(line) + "\n"
+        if len(result) == 0 and self.progress_stage == 2:  # If fetch finished then send EOF.
+            self.progress_stage = 0
+            return "EOF"
+        return result
+
+
+class FetchView(BaseWithLogs):
+    route_base = "/fetch"
 
     @has_access
     @expose("", methods=['POST'])
@@ -54,18 +74,14 @@ class FetchView(BaseView):
         number = -1  # '-1' means "all".
         if 'number' in request.form:
             number = int(request.form['number'])
-        global fetch_status
-        fetch_status = 1
+        self.progress_stage = 1
         thread = Thread(name="fetch_from_github", target=FetchView.fetch, args=[self, number])
         thread.start()
         return "fetch: number=%d" % number
 
     def fetch(self, number):
-        # Prepare log grabber.
-        if self.logs_keeper is None:
-            self.logs_keeper = BufferLogHandler()
-            app.logger.addHandler(self.logs_keeper)
-        self.fetch_status = 1
+        self.init_logs_keeper()
+        self.progress_stage = 1
         time1 = datetime.today()
         # Fetch data from GitHub.
         pull_requests = get_pull_requests_from_github(app.logger, app.config['ACCOUNTS'], app.config['REPO'],
@@ -112,22 +128,13 @@ class FetchView(BaseView):
         app.logger.info("Saved %d pull requests into database (%d inserted, %d updated)",\
                 resulting_count, len(pull_requests_to_insert), len(pull_requests_to_update_numbers))
         # Notify 'fetch_log' that process over.
-        self.fetch_status = 2
+        self.progress_stage = 2
         return "done"
-    
+
     @has_access
     @expose("/log")
     def fetch_log(self):
-        if self.logs_keeper is None:
-            return "EOF"
-        logs = self.logs_keeper.get_buffer_and_reset()
-        result = ""
-        for line in logs:
-            result += str(line) + "\n"
-        if len(result) == 0 and self.fetch_status == 2:  # If fetch finished then send EOF.
-            self.fetch_status = 0
-            return "EOF"
-        return result
+        return self.get_logs()
 
 
 class RawCommentView(ModelView):
