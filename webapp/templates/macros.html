@@ -40,7 +40,6 @@ function startLog(fromUrl, endDataRedirect) {
   poll(fromUrl, 1000, function(line) {
     var terminal = document.getElementById('logarea');
     terminal.appendChild(document.createTextNode(line));
-    //terminal.appendChild(document.createElement('br'));
     terminal.scrollTop = terminal.scrollHeight;
   }, endDataRedirect);
 }

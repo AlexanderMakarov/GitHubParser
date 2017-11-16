@@ -10,7 +10,7 @@ logging.getLogger().setLevel(logging.DEBUG)
 app = Flask(__name__, instance_relative_config=True)
 app.config.from_object('config')
 app.config.from_pyfile('config.py')
-db = SQLA(app)
+db = SQLA(app, session_options={"autoflush": False})
 appbuilder = AppBuilder(app, db.session, indexview=SiteIndexView)
 
 

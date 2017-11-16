@@ -32,14 +32,14 @@ class BufferLogHandler(Handler):
 
     def emit(self, record):
         log_entry = self.format(record)
-        if len(self.buffer) < self.buffer_size - 1:
+        if len(self.buffer) < self.buffer_size - 1:  # Add line.
             self.buffer.append(log_entry)
-        elif len(self.buffer) < self.buffer_size:
+        elif len(self.buffer) < self.buffer_size:  # Add log about reached limit.
             self.buffer.append("------------ limit of logs reached --------------")
 
     def get_buffer_and_reset(self):
-        result = self.buffer[:]
-        self.buffer = []
+        result = list(self.buffer)
+        self.buffer.clear()
         return result
 
 
@@ -62,8 +62,9 @@ class FetchView(BaseView):
 
     def fetch(self, number):
         # Prepare log grabber.
-        self.logs_keeper = BufferLogHandler()
-        app.logger.addHandler(self.logs_keeper)
+        if self.logs_keeper is None:
+            self.logs_keeper = BufferLogHandler()
+            app.logger.addHandler(self.logs_keeper)
         self.fetch_status = 1
         time1 = datetime.today()
         # Fetch data from GitHub.
@@ -74,9 +75,12 @@ class FetchView(BaseView):
                 path="1", line=1, diff_hunk="1", updated_at="1")
         rc2 = RawComment(message="2", message_with_format="2", html_url="2",\
                 path="2", line=2, diff_hunk="2", updated_at="2")
-        pull_requests = [PullRequest(number=1, link="1", state="1", diff="1", raw_comments=[rc1]), \
-                PullRequest(number=2, link="2", state="2", diff="2", raw_comments=[]), \
-                PullRequest(number=3, link="3", state="3", diff="3", raw_comments=[rc1, rc2])]"""
+        rc3 = RawComment(message="3", message_with_format="3", html_url="3",\
+                path="3", line=3, diff_hunk="3", updated_at="3")
+        pr1 = PullRequest(number=1, link="1", state="1", diff=str(random.randint(1, 58564)), raw_comments=[rc1])
+        pr2 = PullRequest(number=2, link="2", state="2", diff="2", raw_comments=[])
+        pr3 = PullRequest(number=random.randint(1, 10), link="3", state="3", diff="3", raw_comments=[rc2, rc3])
+        pull_requests = [pr1, pr2, pr3]"""
 
         time2 = datetime.today()
         resulting_count = len(pull_requests)
@@ -86,30 +90,27 @@ class FetchView(BaseView):
         db_pull_requests_dict = dict()
         for pr in db_pull_requests:
             db_pull_requests_dict[pr.number] = pr
-        pull_requests_to_update = []
-        pull_requests_to_update_numbers = [int]
+        pull_requests_to_update_numbers = []
         pull_requests_to_insert = []
         for pr in pull_requests:
             if pr.number in db_pull_requests_dict:
-                pull_requests_to_update.append(pr)
                 pull_requests_to_update_numbers.append(pr.number)
             else:
                 pull_requests_to_insert.append(pr)
         # Save unique PRs.
-        db.session.add_all(pull_requests_to_insert)
-        db.session.commit()
+        session = db.session
+        session.add_all(pull_requests_to_insert)
+        session.commit()
         # Update existing PRs if need.
-        if len(pull_requests_to_update) > 0:
-            for pr in pull_requests_to_update:  # TODO fix issue with adding one more row on update.
-                #db.session.query(PullRequest).filter(PullRequest.number == pr.number).\
-                #        update({"state": pr.state, "raw_comments": pr.raw_comments, "diff": pr.diff})
-                db_pr: PullRequest = db_pull_requests_dict[pr.number]
-                db_pr.state = pr.state
-                db_pr.raw_comments = pr.raw_comments
-                db_pr.diff = pr.diff
-        db.session.commit()
+        if len(pull_requests_to_update_numbers) > 0:
+            for pr in session.query(PullRequest).filter(PullRequest.number.in_(pull_requests_to_update_numbers)).all():
+                pr_with_updates: PullRequest = db_pull_requests_dict[pr.number]
+                pr.state = pr_with_updates.state
+                pr.diff = pr_with_updates.diff
+                pr.raw_comments = pr_with_updates.raw_comments
+            session.commit()
         app.logger.info("Saved %d pull requests into database (%d inserted, %d updated)",\
-                resulting_count, len(pull_requests_to_insert), len(pull_requests_to_update))
+                resulting_count, len(pull_requests_to_insert), len(pull_requests_to_update_numbers))
         # Notify 'fetch_log' that process over.
         self.fetch_status = 2
         return "done"
@@ -124,6 +125,7 @@ class FetchView(BaseView):
         for line in logs:
             result += str(line) + "\n"
         if len(result) == 0 and self.fetch_status == 2:  # If fetch finished then send EOF.
+            self.fetch_status = 0
             return "EOF"
         return result
 

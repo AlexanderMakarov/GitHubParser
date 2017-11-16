@@ -70,7 +70,7 @@ def parse_raw_comments(task: Task, prs: [], repo, logger: Logger):
     logger.info("%s task done, ratelimit_remaining=%d", task.name, repo.ratelimit_remaining)
 
 
-def parse_pull_requests(task: Task, prs: [GitHubPullRequest], repo, logger: Logger):
+def parse_pull_requests(task: Task, prs: [], repo, logger: Logger):
     # TODO support few accounts in real!
     #github = github3.login(task.username, task.password)
     #repo = github.repository(config.repo_owner, config.repo)
@@ -169,8 +169,8 @@ def parse_git_diff(diff: str):
     piece: GitPiece = None
     index_line = None
     diff_data = None
-    pieces = [GitPiece]
-    files = [GitFile]
+    pieces = []
+    files = []
     for i, line in enumerate(lines):
 
         # Parse lines. Collect data into 'tmp_piece' and 'tmp_diff_data'.
