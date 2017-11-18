@@ -1,3 +1,3 @@
-set FLASK_APP=webapp/site.py
+set FLASK_APP=run.py
 set FLASK_DEBUG=0
-python -m flask run
+python -m flask run --port 8080
