@@ -10,7 +10,7 @@ def parse_git_diff_diff_line(line: str):
     diff --git a/iOS/actions/ui/screens/sheet.js b/iOS/actions/ui/screens/sheet.js
     """
     match = DIFF_DIFF_RE.match(line)
-    if match and len(match.groups()) == 4:
+    if match and len(match.groups()) == 3:
         return {"a_path": match.group(1), "b_path": match.group(3)}
     return None
 
@@ -32,12 +32,19 @@ def parse_git_diff_position_line(line: str):
 def parse_git_diff(diff: str, path_if_diff_hunk: str):
     """
     Parses "git diff" output into list of 'GitFile' objects.
+    :param diff: String with diff lines. Can be diff_hunk or git diff.
+    :param path_if_diff_hunk: If it is diff_hunk then path to file with it.
+    :return: List of GitFile objects.
     """
+    # git_lines_counter format:
+    # 5: diff, 4: index, 3: ---, 2: +++, 1: @@ (position), 0: regular line of patch.
     if diff.startswith("b'"):
         diff = diff[2:-1]  # Trim "bytestring" format like [b'foo'] -> [foo]
-    lines = diff.split('\n')
-    # 5: diff, 4: index, 3: ---, 2: +++, 1: @@ (position), 0: regular line of patch.
-    git_lines_counter = 1 if path_if_diff_hunk else 5  # diff_hunk started from "@@" line.
+        lines = diff.split('\\n')
+        git_lines_counter = 5
+    else:
+        lines = diff.split('\n')
+        git_lines_counter = 1
     piece: GitPiece = None
     index_line = None
     diff_data = None
@@ -91,5 +98,4 @@ def parse_git_diff(diff: str, path_if_diff_hunk: str):
     # Handle last piece and file (there is no one more "diff" line to trigger handling of it in the cycle).
     handle_previous_piece()
     handle_previous_file()
-
     return files

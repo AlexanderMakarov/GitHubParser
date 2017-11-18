@@ -12,7 +12,7 @@ def analyze_raw_comment(rc: RawComment):
 
 
 def analyze_pull_request(pr: PullRequest):
-    return parse_git_diff(pr.diff, None)  # TODO complete.
+    return parse_git_diff(str(pr.diff), None)  # TODO complete.
 
 
 def analyze_items(logger: Logger, items: [], threads_number: int):

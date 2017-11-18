@@ -140,15 +140,17 @@ class AnalyzeView(BaseWithLogs):
         thread.start()
         return "analyze: count=%d pr=%d" % (count, pr)
 
-    def analyze(self, count: int, pr: int):
+    def analyze(self, count: int, pr_number: int):
         self.init_logs_keeper()
         self.progress_stage = 1
         # Choose what to analyze.
         time1 = datetime.today()
-        if pr > 0:
-            # TODO Analyze pr.
+        if pr_number > 0:
+            pr = db.session.query(PullRequest).filter(PullRequest.number == pr_number).first()
+            result = analyze_items(app.logger, [pr], os.cpu_count())
+            # TODO complete. Show with http://flask-appbuilder.readthedocs.io/en/latest/generic_datasource.html
             time2 = datetime.today()
-            app.logger.info("Analyzed %d pull request in %s seconds", pr, time2 - time1)
+            app.logger.info("Analyzed %d pull request in %s seconds", pr_number, time2 - time1)
         else:
             raw_comments = db.session.query(RawComment).limit(count).all()
             result = analyze_items(app.logger, raw_comments, os.cpu_count())
