@@ -3,14 +3,14 @@ from flask_appbuilder.models.sqla.interface import SQLAInterface
 from flask_appbuilder import AppBuilder, ModelView, expose, BaseView, has_access, action
 from webapp import appbuilder, app, db
 from datetime import datetime
-from github_parser.parser import get_pull_requests_from_github, PullRequest, fetch_pr_from_github
+from github_parser.parser import get_pull_requests_from_github, fetch_pr_from_github
+from analyzer.analyzer import analyze_items
 from model.raw_comment import RawComment
+from model.pull_request import PullRequest
 from model.comment import Comment
-from flask_wtf import CsrfProtect
-import time
+import os
 import random
 from logging import Handler
-import logging.handlers
 from threading import Thread
 
 
@@ -81,23 +81,10 @@ class FetchView(BaseWithLogs):
 
     def fetch(self, number):
         self.init_logs_keeper()
-        self.progress_stage = 1
         time1 = datetime.today()
         # Fetch data from GitHub.
         pull_requests = get_pull_requests_from_github(app.logger, app.config['ACCOUNTS'], app.config['REPO'],
                 app.config['REPO_OWNER'], number)
-
-        """rc1 = RawComment(message="1", message_with_format="1", html_url="1",\
-                path="1", line=1, diff_hunk="1", updated_at="1")
-        rc2 = RawComment(message="2", message_with_format="2", html_url="2",\
-                path="2", line=2, diff_hunk="2", updated_at="2")
-        rc3 = RawComment(message="3", message_with_format="3", html_url="3",\
-                path="3", line=3, diff_hunk="3", updated_at="3")
-        pr1 = PullRequest(number=1, link="1", state="1", diff=str(random.randint(1, 58564)), raw_comments=[rc1])
-        pr2 = PullRequest(number=2, link="2", state="2", diff="2", raw_comments=[])
-        pr3 = PullRequest(number=random.randint(1, 10), link="3", state="3", diff="3", raw_comments=[rc2, rc3])
-        pull_requests = [pr1, pr2, pr3]"""
-
         time2 = datetime.today()
         resulting_count = len(pull_requests)
         app.logger.info("Fetched %d pull requests in %s seconds", resulting_count, time2 - time1)
@@ -134,6 +121,48 @@ class FetchView(BaseWithLogs):
     @has_access
     @expose("/log")
     def fetch_log(self):
+        return self.get_logs()
+
+
+class AnalyzeView(BaseWithLogs):
+    route_base = "/analyze"
+
+    @has_access
+    @expose("", methods=['POST'])
+    def analyze_with_params(self):
+        count = -1  # '-1' means "all".
+        pr = -1
+        if 'count' in request.form:
+            count = int(request.form['count'])
+        if 'pr' in request.form:
+            pr = int(request.form['pr'])
+        thread = Thread(name="analyze", target=AnalyzeView.analyze, args=[self, count, pr])
+        thread.start()
+        return "analyze: count=%d pr=%d" % (count, pr)
+
+    def analyze(self, count: int, pr: int):
+        self.init_logs_keeper()
+        self.progress_stage = 1
+        # Choose what to analyze.
+        time1 = datetime.today()
+        if pr > 0:
+            # TODO Analyze pr.
+            time2 = datetime.today()
+            app.logger.info("Analyzed %d pull request in %s seconds", pr, time2 - time1)
+        else:
+            raw_comments = db.session.query(RawComment).limit(count).all()
+            result = analyze_items(app.logger, raw_comments, os.cpu_count())
+            # TODO complete. Show with http://flask-appbuilder.readthedocs.io/en/latest/generic_datasource.html
+            time2 = datetime.today()  # Now it is a place for breakpoint.
+            app.logger.info("Analyzed %d raw comments in %s seconds",\
+                    len(raw_comments), time2 - time1)
+        # Notify 'analyze_log' that process over.
+        self.progress_stage = 2
+        return "done"
+
+    @has_access
+    @expose("/log")
+    def analyze_log(self):
         return self.get_logs()
 
 
@@ -206,11 +235,11 @@ class SiteMapView(BaseView):
 
 
 db.create_all()
-#appbuilder.add_view(HomeView, "Home", category="Home")
 appbuilder.add_view_no_menu(PullRequestView())
 appbuilder.add_view(RawCommentView, "List fetched comments", category="Raw Comments")
 appbuilder.add_view(CommentView, "List Comments", category="Comments")
 appbuilder.add_view(PullRequestsView, "List Pull Requests", category="Pull Requests")
 appbuilder.add_view_no_menu(PullRequestView)
 appbuilder.add_view_no_menu(FetchView)
+appbuilder.add_view_no_menu(AnalyzeView)
 appbuilder.add_view_no_menu(SiteMapView)

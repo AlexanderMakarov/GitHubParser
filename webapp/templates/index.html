@@ -28,9 +28,29 @@
             e.preventDefault(); // Don't execute the actual submit of the form.
         });
     </script>
-    <form action="/analyze" method="post">
-        <button name="analyzeButton" type="submit">TODO: Analyze all fetched pull requests</button>
+    <form id="analyze_form" action="/analyze" method="post">
+        Raw Comments count (-1 for all):<input id="analyze_count" name="count" type="number" value="2">
+        Pull Request (-1 if analyze raw comments)<input id="analyze_pr" name="pr" type="number" value="-1">&nbsp;&nbsp;&nbsp;
+        <button name="analyzeButton" type="submit">Analyze</button>
     </form>
+    <script>
+        $("#analyze_form").submit(function(e) {
+            console.log("prevent analyze_form")
+            $.ajax({
+                type: "POST",
+                url: "/analyze",
+                data: $("#analyze_form").serialize(), // Serializes the form's elements.
+                success: function(data) {
+                    startLog('/analyze/log')
+                },
+                error: function(error) {
+                    console.log(error);
+                    alert(error);
+                }
+            });
+            e.preventDefault(); // Don't execute the actual submit of the form.
+        });
+    </script>
     <form id="open_pr" action="/pr" method="post" role="form">
         <input name="number" type="number" value="1717">&nbsp;&nbsp;&nbsp;&nbsp;
         <button type="submit">Fetch and parse specified pull request</button>

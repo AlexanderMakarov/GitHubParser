@@ -5,7 +5,6 @@ from github3.repos.repo import Repository
 from github3.pulls import PullRequest as GitHubPullRequest
 from model.raw_comment import RawComment
 from logging import Logger
-from model.git_data import GitFile, GitLine, GitPiece
 from model.pull_request import PullRequest
 
 
@@ -129,82 +128,6 @@ def get_pull_requests_from_github(logger: Logger, accounts: [], repo_name: str, 
     for task in tasks:
         result.extend(task.result)
     return result
-
-
-DIFF_DIFF_RE = re.compile("diff --git a/(.+?)( b/)(.*)")
-
-
-def parse_git_diff_diff_line(line: str):
-    """
-    diff --git a/iOS/actions/ui/screens/sheet.js b/iOS/actions/ui/screens/sheet.js
-    """
-    match = DIFF_DIFF_RE.match(line)
-    if match and len(match.groups()) == 4:
-        return {"a_path": match.group(1), "b_path": match.group(3)}
-    return None
-
-
-DIFF_POSITION_RE = re.compile("@@ -(\d+),(\d+) +(\d+),(\d+) @@ (.*)")
-
-
-def parse_git_diff_position_line(line: str):
-    """
-    @@ -278,13 +278,15 @@ Sheet.tapRefresh = function() {
-    """
-    match = DIFF_POSITION_RE.match(line)
-    if match and len(match.groups()) == 4:
-        return GitPiece(int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4)), \
-                        match.group(5))
-    return None
-
-
-def parse_git_diff(diff: str):
-    """
-    Parses "git diff" output into list of 'GitFile' objects.
-    """
-    if diff.startswith("b'"):
-        diff = diff[2:-1]  # Trim "bytestring" format like [b'foo'] -> [foo]
-    lines = diff.split('\\n')
-    git_lines_counter = 5  # 5: diff, 4: index, 3: ---, 2: +++, 1: @@ (position), 0: regular line of patch.
-    piece: GitPiece = None
-    index_line = None
-    diff_data = None
-    pieces = []
-    files = []
-    for i, line in enumerate(lines):
-
-        # Parse lines. Collect data into 'tmp_piece' and 'tmp_diff_data'.
-        if git_lines_counter > 0:
-            if git_lines_counter == 1:
-                tmp_piece = parse_git_diff_position_line(line)
-            elif git_lines_counter == 4:
-                index_line = line
-            elif git_lines_counter == 5:
-                tmp_diff_data = parse_git_diff_diff_line(line)
-            git_lines_counter -= 1
-        else:
-            # Try to parse from line "@@" string.
-            tmp_piece = parse_git_diff_position_line(line)
-            if tmp_piece is None:
-                # Try to parse from line "diff" string.
-                tmp_diff_data = parse_git_diff_diff_line(line)
-                if tmp_diff_data is None:
-                    # It is regular line.
-                    piece.lines.append(GitLine(line))
-
-        # Combine received data into 'pieces' and 'files'. Set 'tmp_piece'->'piece' and 'tmp_diff_data'->'diff_data'.
-        if tmp_piece and len(piece.lines) > 0:  # Check started new piece and previous not empty.
-            pieces.append(piece)
-            piece = tmp_piece
-        if tmp_diff_data:  # Check started new file.
-            if piece and len(piece.lines) > 0:  # Add pending piece.
-                pieces.append(piece)
-            if len(pieces) > 0:  # Check that there are pieces in this file.
-                files.append(GitFile(diff_data['b_path'], index_line, pieces))
-            diff_data = tmp_diff_data
-            git_lines_counter = 4
-            index_line = None
-    return files
 
 
 def fetch_pr_from_github(logger: Logger, account: [], repo_owner: str, repo_name: str, pr_number: int):
