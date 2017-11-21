@@ -10,7 +10,7 @@ class GitLineType(Enum):
 
 class GitLine:
     def __init__(self, line: str):
-        self.line= line
+        self.line = line
         first_char = line[0:1]
         if first_char == "+":
             self.type = GitLineType.ADD
@@ -21,7 +21,7 @@ class GitLine:
 
 
 def parse_file_type(file_path: str):
-    for item in list(FileType):
+    for item in list():
         if item is not FileType.UNSUPPORTED:
             if file_path.endswith(item.value):
                 return item

@@ -20,15 +20,15 @@ exit(1)"""
 sess = tf.Session()
 
 # Model parameters
-W = tf.Variable([.3], dtype=tf.float32)
-b = tf.Variable([-.3], dtype=tf.float32)
+W = tf.Variable([.3], dtype=tf.float32, name="W")
+b = tf.Variable([-.3], dtype=tf.float32, name="b")
 # Model input and output
-x = tf.placeholder(tf.float32)
+x = tf.placeholder(tf.float32, name="x")
 linear_model = W*x + b
-y = tf.placeholder(tf.float32)
+y = tf.placeholder(tf.float32, name="y")
 
 # loss
-loss = tf.reduce_sum(tf.square(linear_model - y)) # sum of the squares
+loss = tf.reduce_sum(tf.square(linear_model - y))  # sum of the squares
 tf.summary.scalar("loss", loss)
 # optimizer
 optimizer = tf.train.GradientDescentOptimizer(0.01)
@@ -43,12 +43,13 @@ init = tf.global_variables_initializer()
 sess = tf.Session()
 writer = tf.summary.FileWriter(logs_path, sess.graph)
 sess.run(init)  # reset values to wrong
-for i in range(10):
+for i in range(1000):
     feed_dict = {x: x_train, y: y_train}
-    sess.run(train, feed_dict)
-    # Do each step.
-    summary_str = sess.run(merged_ops, feed_dict)
-    writer.add_summary(summary_str, i)
+    train_result = sess.run(train, feed_dict)
+    # Do each 10th step.
+    if i % 10 == 0:
+        summary_str = sess.run(merged_ops, feed_dict)
+        writer.add_summary(summary_str, i)
 
 
 # evaluate training accuracy
