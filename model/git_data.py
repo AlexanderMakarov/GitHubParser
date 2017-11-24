@@ -21,10 +21,11 @@ class GitLine:
 
 
 def parse_file_type(file_path: str):
-    for item in list():
-        if item is not FileType.UNSUPPORTED:
-            if file_path.endswith(item.value):
-                return item
+    _, file_extension = os.path.splitext(file_path)
+    for file_type in FileType:
+        if file_extension == file_type.value:
+            return file_type
+    return FileType.UNSUPPORTED
 
 
 class GitPiece:
