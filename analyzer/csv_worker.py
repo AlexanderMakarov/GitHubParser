@@ -16,7 +16,7 @@ def dump_features(names: [], rows: []):
     # First columns - features of one type. Last column - output value.
     prepare_folder()
     file_path = os.path.join(CSV_FOLDER, "features.csv")
-    with open(file_path, 'w', encoding='utf-8') as csv_file:
+    with open(file_path, 'w', encoding='utf-8', newline='') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(names)
         for row in rows:
@@ -28,7 +28,7 @@ def dump_train(names: [], rows: []):
     # names - features names + 1 columns for RCClass identifier. Row - same size as 'names'
     prepare_folder()
     file_path = os.path.join(CSV_FOLDER, "train.csv")
-    with open(file_path, 'w', encoding='utf-8') as csv_file:
+    with open(file_path, 'w', encoding='utf-8', newline='') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(names)
         for row in rows:
@@ -38,6 +38,8 @@ def dump_train(names: [], rows: []):
                     data.append(-1)
                 elif value is True:
                     data.append(1)
+                elif value is None:
+                    data.append(0)
                 else:
                     data.append(value)
             writer.writerow(data)
@@ -47,7 +49,7 @@ def dump_train(names: [], rows: []):
 def dump_rcclasses(rcclasses: []):
     prepare_folder()
     file_path = os.path.join(CSV_FOLDER, "rclasses.csv")
-    with open(file_path, 'w', encoding='utf-8') as csv_file:
+    with open(file_path, 'w', encoding='utf-8', newline='') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(["common_message", "raw_comments"])
         for row in rcclasses:

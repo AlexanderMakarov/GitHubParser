@@ -151,7 +151,7 @@ class AnalyzeView(BaseWithLogs):
         # Use all RCs.
         raw_comments = db.session.query(RawComment).limit(count).all()
         # Use only closed PRs.
-        prs = db.session.query(PullRequest).filter(PullRequest.state == "closed").limit(count).all()
+        prs = db.session.query(PullRequest).filter(PullRequest.state == "closed").limit(pr_number).all()
         # 1. Get and dump outputs - RCClass-es.
         preanalyze(app.logger, raw_comments, prs)
         time2 = datetime.today()
