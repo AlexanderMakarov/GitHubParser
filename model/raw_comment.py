@@ -28,10 +28,3 @@ class RawComment(Model):
     def parse_pr_number(self):
         match = PR_NUMBER_RE.match(self.html_url)
         return int(match.group(1))
-
-
-#assoc_pr_raw_comments = Table('assoc_pr_raw_comments', Model.metadata,
-#        Column('id', Integer, primary_key=True),
-#        Column('pr_id', Integer, ForeignKey('pull_requests.id')),
-#        Column('raw_comment_id', Integer, ForeignKey('raw_comments.id'))
-#)

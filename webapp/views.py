@@ -7,11 +7,13 @@ from github_parser.parser import get_pull_requests_from_github, fetch_pr_from_gi
 from analyzer.analyzer import analyze_items
 from model.raw_comment import RawComment
 from model.pull_request import PullRequest
+# from model.rcclass import RCClass
 from model.comment import Comment
 import os
 import random
 from logging import Handler
 from threading import Thread
+from analyzer.ml_dnn import preanalyze
 
 
 class HomeView(BaseView):
@@ -143,6 +145,44 @@ class AnalyzeView(BaseWithLogs):
     def analyze(self, count: int, pr_number: int):
         self.init_logs_keeper()
         self.progress_stage = 1
+        time1 = datetime.today()
+        raw_comments = db.session.query(RawComment).limit(count).all()
+        prs = db.session.query(PullRequest).limit(count).all()
+        # 1. Get and dump outputs - RCClass-es.
+        preanalyze(app.logger, raw_comments, prs)
+        time2 = datetime.today()
+        app.logger.info("Analyzed %d raw comments and %d pull request in %s seconds", len(raw_comments), len(prs),\
+                time2 - time1)
+        self.progress_stage = 2
+        return "done"
+
+    @has_access
+    @expose("/log")
+    def analyze_log(self):
+        return self.get_logs()
+
+
+class TrainView(BaseWithLogs):
+    route_base = "/train"
+
+    @has_access
+    @expose("", methods=['POST'])
+    def analyze_with_params(self):
+        count = -1  # '-1' means "all".
+        pr = -1
+        if 'count' in request.form:
+            count = int(request.form['count'])
+        if 'pr' in request.form:
+            pr = int(request.form['pr'])
+        thread = Thread(name="train", target=TrainView.train, args=[self, count, pr])
+        thread.start()
+        return "train: count=%d pr=%d" % (count, pr)
+
+    def train(self, count: int, pr_number: int):
+        self.init_logs_keeper()
+        self.progress_stage = 1
+        # TODO analyze + train network + export model + prepare for work.
+
         # Choose what to analyze.
         time1 = datetime.today()
         if pr_number > 0:
@@ -154,8 +194,10 @@ class AnalyzeView(BaseWithLogs):
         else:
             raw_comments = db.session.query(RawComment).limit(count).all()
             result = analyze_items(app.logger, raw_comments, os.cpu_count())
+
             # TODO complete. Show with http://flask-appbuilder.readthedocs.io/en/latest/generic_datasource.html
             time2 = datetime.today()  # Now it is a place for breakpoint.
+
             app.logger.info("Analyzed %d raw comments in %s seconds",\
                     len(raw_comments), time2 - time1)
         # Notify 'analyze_log' that process over.
@@ -189,6 +231,14 @@ class CommentView(ModelView):
     @expose("/comments/<int:comment_id>")
     def comment(self, comment_id):
         return "comments/" + str(comment_id)
+
+
+# class RCClassesView(ModelView):
+#     route_base = "/rcclasses"
+#     datamodel = SQLAInterface(RCClass)
+#     page_size = 50
+#     #list_columns = ["common_message", "state", "link"]
+#     related_views = [RawCommentView]
 
 
 class PullRequestsView(ModelView):
@@ -237,11 +287,11 @@ class SiteMapView(BaseView):
 
 
 db.create_all()
-appbuilder.add_view_no_menu(PullRequestView())
-appbuilder.add_view(RawCommentView, "List fetched comments", category="Raw Comments")
-appbuilder.add_view(CommentView, "List Comments", category="Comments")
-appbuilder.add_view(PullRequestsView, "List Pull Requests", category="Pull Requests")
+appbuilder.add_view(RawCommentView, "List fetched comments", category="GitHub data")
+appbuilder.add_view(PullRequestsView, "List Pull Requests", category="GitHub data")
+# appbuilder.add_view(RCClassesView, "List RCClasses", category="Analyzed data")
 appbuilder.add_view_no_menu(PullRequestView)
 appbuilder.add_view_no_menu(FetchView)
 appbuilder.add_view_no_menu(AnalyzeView)
+appbuilder.add_view_no_menu(TrainView)
 appbuilder.add_view_no_menu(SiteMapView)
