@@ -146,8 +146,10 @@ class AnalyzeView(BaseWithLogs):
         self.init_logs_keeper()
         self.progress_stage = 1
         time1 = datetime.today()
+        # Use all RCs.
         raw_comments = db.session.query(RawComment).limit(count).all()
-        prs = db.session.query(PullRequest).limit(count).all()
+        # Use only closed PRs.
+        prs = db.session.query(PullRequest).filter(PullRequest.state == "closed").limit(count).all()
         # 1. Get and dump outputs - RCClass-es.
         preanalyze(app.logger, raw_comments, prs)
         time2 = datetime.today()

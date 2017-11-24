@@ -15,7 +15,7 @@ def parse_git_diff_diff_line(line: str):
     return None
 
 
-DIFF_POSITION_RE = re.compile("@@ -(\d+),(\d+) \+(\d+),(\d+) @@ (.*)")
+DIFF_POSITION_RE = re.compile("@@ -(\d+),(\d+) \+(\d+),(\d+) @@(.*)")
 
 
 def parse_git_diff_position_line(line: str):
