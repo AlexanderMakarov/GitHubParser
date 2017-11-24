@@ -29,7 +29,7 @@ def parse_file_type(file_path: str):
 
 class GitPiece:
     def __init__(self, from_line: int, from_lines: int, to_line: int, to_lines: int, parent_line: str,\
-                lines: [GitLine] = []):
+                lines = []):
         self.from_line = from_line
         self.from_lines = from_lines
         self.to_line = to_line

@@ -31,7 +31,7 @@ class XmlParser:
                 token_type = str(token[0])
                 value = token[1]
                 if token_type == 'Token.Name.Tag':
-                    if value[0] == '<' and value[1] != '/':
+                    if value[0] == '<' and value[1] != '/' and value[1] != '!':
                         features.tagsCount += 1
                         tags_len += value.__len__()
                         features.openedTagsCnt += 1
@@ -69,15 +69,13 @@ class XmlParser:
                         features.openedCommentsCnt += 1
                     elif '-->' in token[1]:
                         features.closedCommentsCnt += 1
-            features.isComment = 1 if features.openedCommentsCnt > 0 \
-                                 and features.closedCommentsCnt == 0 \
+            features.isComment = 1 if ((features.openedCommentsCnt > 0
+                                 and features.closedCommentsCnt == 0) or (features.openedCommentsCnt == features.closedCommentsCnt)) \
                                  and features.openedTagsCnt == opened_tags \
                                  and features.closedTagsCnt == 0 else -1
 
             opened_tags = features.openedTagsCnt - features.closedTagsCnt
             opened_comments = features.openedCommentsCnt - features.closedCommentsCnt
-            if features.isComment:
-                features.commentsCnt += 1
             features.avgAttrLen = attrs_len / features.attrCnt if features.attrCnt > 0 else 0
             features.avgAttrValLen = attrs_val_len / features.attrCnt if features.attrCnt > 0 else 0
             features.tagsAvgLen = tags_len / features.tagsCount if features.tagsCount > 0 else 0
