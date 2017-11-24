@@ -13,6 +13,7 @@ def prepare_folder():
 
 def dump_features(names: [], rows: []):
     # names - features names. Row - 2d array, same size as 'names'
+    # First columns - features of one type. Last column - output value.
     prepare_folder()
     file_path = os.path.join(CSV_FOLDER, "features.csv")
     with open(file_path, 'w', encoding='utf-8') as csv_file:
@@ -27,11 +28,19 @@ def dump_train(names: [], rows: []):
     # names - features names + 1 columns for RCClass identifier. Row - same size as 'names'
     prepare_folder()
     file_path = os.path.join(CSV_FOLDER, "train.csv")
-    with open(os.path.join(CSV_FOLDER, "train.csv"), 'w', encoding='utf-8') as csv_file:
+    with open(file_path, 'w', encoding='utf-8') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(names)
         for row in rows:
-            writer.writerow(row)
+            data = []
+            for value in row:
+                if value is False:
+                    data.append(-1)
+                elif value is True:
+                    data.append(1)
+                else:
+                    data.append(value)
+            writer.writerow(data)
     return file_path
 
 

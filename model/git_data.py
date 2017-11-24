@@ -43,6 +43,7 @@ class FileType(Enum):
     XML = ".xml"
     JAVASCRIPT = ".js"
     PYTHON = ".py"
+    SWIFT = ".swift"
     SH_SCRIPT = ".sh"
     CONFIG = ".cfg"
 
