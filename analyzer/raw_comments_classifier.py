@@ -6,6 +6,8 @@ from analyzer.csv_worker import dump_rcclasses
 from logging import Logger
 from collections import OrderedDict
 from operator import itemgetter
+from datetime import datetime
+from itertools import groupby
 
 
 class RCClass:
@@ -51,7 +53,7 @@ def extract_raw_comments_data(rcs: []):
     rcs_to_messages = []
     for rc in rcs:
         rc: RawComment
-        rcs_to_messages.append((rc.id, rc.message_with_format))
+        rcs_to_messages.append([rc.id, rc.message_with_format])
     return rcs_to_messages
 
 
@@ -68,24 +70,38 @@ def classify_raw_comments(logger: Logger, rcs: []):
             break
         same_rcs = []
         checked_message: str = None
-        checked_message_rc: RawComment = None
-        for rc, message in rcs_to_messages:
+        checked_message_rc = 0
+        tmp_list = []
+        for pair in rcs_to_messages:
+            rc_id = pair[0]
+            message = pair[1]
             if checked_message is None:
                 checked_message = message
-                checked_message_rc = rc
-            elif check_normalized_messages_equal(message, checked_message):
-                # Add RC with "similar" message to 'same_rcs' and remove RC from following searches.
-                same_rcs.append(rc)
+                checked_message_rc = rc_id
+            else:
+                if check_normalized_messages_equal(message, checked_message):
+                    # Add RC with "similar" message to 'same_rcs' and remove RC from following searches.
+                    same_rcs.append(rc_id)
+                else:
+                    tmp_list.append(pair)  # Append to tmp "new" list if not matched.
         same_rcs.append(checked_message_rc)
-        for rc in same_rcs:
-            rcs_to_messages.remove()
-            del rcs_to_messages[rc]  # Remove all "similar" RC's, at least currently checked (unique).
         classes.append(RCClass(checked_message, same_rcs))
+        rcs_to_messages = tmp_list  # Change iterated list to shrinked.
+    return classes
+
+
+def classify_raw_comments_hash(logger: Logger, rcs: []):
+    rcs_to_messages = extract_raw_comments_data(rcs)
+    rcs_to_messages = sorted(rcs_to_messages, key=lambda x: x[1])  # Sort by messages.
+    classes = []
+    for key, group in groupby(rcs_to_messages, lambda item: item[1]):
+        classes.append(RCClass(key, list(group)))
     return classes
 
 
 def classify_and_dump_raw_comments(logger: Logger, rcs: []):
-    classes = classify_raw_comments(logger, rcs)
+    #classes = classify_raw_comments(logger, rcs)  # 200 rcs - 11 sec
+    classes = classify_raw_comments_hash(logger, rcs)  # 500 rcs - 9 sec
     logger.info("Found %d classes in %d raw comments", len(classes), len(rcs))
     path = dump_rcclasses(classes)
     logger.info("Dump raw comments %d classes into %s", len(classes), path)
