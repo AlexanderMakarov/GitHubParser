@@ -8,6 +8,7 @@ from collections import OrderedDict
 from operator import itemgetter
 from datetime import datetime
 from itertools import groupby
+import math
 
 
 class RCClass:
@@ -63,7 +64,7 @@ def classify_raw_comments(logger: Logger, rcs: []):
     #rcs_to_messages = OrderedDict(sorted(rcs_to_messages.items(), key=itemgetter(1)))
     classes = []
     rcs_number = len(rcs_to_messages)
-    estimate = rcs_number * 10  # Value - found experimentally.
+    estimate = math.pow(math.log(rcs_number), 2) * 2.1  # Value - found experimentally.
     logger.info("Start analyse %d raw commits. Wait %d seconds.", rcs_number, estimate)
     for i in range(0, rcs_number):  # "while" can cause infinite loop.
         if len(rcs_to_messages) <= 0:
@@ -87,22 +88,26 @@ def classify_raw_comments(logger: Logger, rcs: []):
         same_rcs.append(checked_message_rc)
         classes.append(RCClass(checked_message, same_rcs))
         rcs_to_messages = tmp_list  # Change iterated list to shrinked.
+    logger.info("Found %d classes in %d raw comments", len(classes), len(rcs))
     return classes
 
 
 def classify_raw_comments_hash(logger: Logger, rcs: []):
     rcs_to_messages = extract_raw_comments_data(rcs)
     rcs_to_messages = sorted(rcs_to_messages, key=lambda x: x[1])  # Sort by messages.
+    rcs_number = len(rcs_to_messages)
+    estimate = math.pow(math.log(rcs_number), 2) * 2  # Value - found experimentally.
+    logger.info("Start analyse %d raw commits. Wait %d seconds.", rcs_number, estimate)
     classes = []
     for key, group in groupby(rcs_to_messages, lambda item: item[1]):
         classes.append(RCClass(key, list(group)))
+    logger.info("Found %d classes in %d raw comments", len(classes), len(rcs))
     return classes
 
 
 def classify_and_dump_raw_comments(logger: Logger, rcs: []):
     #classes = classify_raw_comments(logger, rcs)  # 200 rcs - 11 sec
     classes = classify_raw_comments_hash(logger, rcs)  # 500 rcs - 9 sec
-    logger.info("Found %d classes in %d raw comments", len(classes), len(rcs))
     path = dump_rcclasses(classes)
     logger.info("Dump raw comments %d classes into %s", len(classes), path)
     return path
