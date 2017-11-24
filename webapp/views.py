@@ -146,8 +146,10 @@ class AnalyzeView(BaseWithLogs):
         self.init_logs_keeper()
         self.progress_stage = 1
         time1 = datetime.today()
+        # Use all RCs.
         raw_comments = db.session.query(RawComment).limit(count).all()
-        prs = db.session.query(PullRequest).limit(count).all()
+        # Use only closed PRs.
+        prs = db.session.query(PullRequest).filter(PullRequest.state == "closed").limit(count).all()
         # 1. Get and dump outputs - RCClass-es.
         preanalyze(app.logger, raw_comments, prs)
         time2 = datetime.today()
@@ -159,6 +161,48 @@ class AnalyzeView(BaseWithLogs):
     @has_access
     @expose("/log")
     def analyze_log(self):
+        return self.get_logs()
+
+
+class ParseView(BaseWithLogs):
+    route_base = "/parse"
+
+    @has_access
+    @expose("", methods=['POST'])
+    def parse_with_params(self):
+        count = -1  # '-1' means "all".
+        if 'count' in request.form:
+            count = int(request.form['count'])
+
+        thread = Thread(name="parse", target=ParseView.parse, args=[self, count])
+        thread.start()
+        return "parse: count=%d" % count
+
+    def parse(self, count: int):
+        self.init_logs_keeper()
+        self.progress_stage = 1
+        time1 = datetime.today()
+        raw_comments = db.session.query(RawComment).filter(RawComment.path.distinct()).all()
+
+        for rc in raw_comments:
+            if rc.path[-3:] == 'xml':
+                app.logger.info(rc.path)
+                print(rc.path)
+
+        '''  prs = db.session.query(PullRequest).limit(count).all()
+        # 1. Get and dump outputs - RCClass-es.
+        preanalyze(app.logger, raw_comments, prs)
+        time2 = datetime.today()
+        app.logger.info("Analyzed %d raw comments and %d pull request in %s seconds", len(raw_comments), len(prs),\
+                time2 - time1)
+        self.progress_stage = 2 
+        '''
+
+        return "done"
+
+    @has_access
+    @expose("/log")
+    def parse_log(self):
         return self.get_logs()
 
 
@@ -295,3 +339,4 @@ appbuilder.add_view_no_menu(FetchView)
 appbuilder.add_view_no_menu(AnalyzeView)
 appbuilder.add_view_no_menu(TrainView)
 appbuilder.add_view_no_menu(SiteMapView)
+appbuilder.add_view_no_menu(ParseView)

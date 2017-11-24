@@ -31,7 +31,7 @@
     <form id="analyze_form" action="/analyze" method="post">
         Raw Comments count (-1 for all):<input id="analyze_count" name="count" type="number" value="20">
         Pull Request (-1 to analyze raw comments)<input id="analyze_pr" name="pr" type="number" value="-1">
-        <button name="analyzeButton" type="submit">Analyze</button> TODO: save or display.
+        <button name="analyzeButton" type="submit">Analyze</button> NOTE that previous data (CSV files) will be overwritten)
     </form>
     <script>
         $("#analyze_form").submit(function(e) {
@@ -78,6 +78,28 @@
         <input name="number" type="number" value="1301">&nbsp;&nbsp;&nbsp;&nbsp;
         <button type="submit">Fetch and parse specified pull request</button>
     </form>
+    <form id="parse_comment_code" action="/parse" method="post" role="form">
+        <input name="count" type="number" value="20">
+        <button type="submit">Parse</button>
+    </form>
+    <script>
+        $("#parse_comment_code").submit(function(e) {
+            console.log("prevent parse_comment_code")
+            $.ajax({
+                type: "POST",
+                url: "/parse",
+                data: $("#parse_comment_code").serialize(), // Serializes the form's elements.
+                success: function(data) {
+                    startLog('/parse/log')
+                },
+                error: function(error) {
+                    console.log(error);
+                    alert(error);
+                }
+            });
+            e.preventDefault(); // Don't execute the actual submit of the form.
+        });
+    </script>
     {{ poll() }}
     {{ log() }}
     </div>
