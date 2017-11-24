@@ -2,7 +2,7 @@ import os
 from flask_appbuilder.security.manager import AUTH_OID, AUTH_REMOTE_USER, AUTH_DB, AUTH_LDAP, AUTH_OAUTH
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(basedir, "SmartsheetTests3.sqlite")
+SQLALCHEMY_DATABASE_URI = 'sqlite:///' + os.path.join(basedir, "SmartsheetIosXctest.sqlite")
 SQLALCHEMY_TRACK_MODIFICATIONS = False
 SECRET_KEY = 'foobar'
 AUTH_TYPE = AUTH_DB  # Can't disable auth completely so use internal at least.
