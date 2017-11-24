@@ -24,26 +24,46 @@ def dump_features(names: [], rows: []):
     return file_path
 
 
-def dump_train(names: [], rows: []):
+def normalise_row_values(row):
+    data = []
+    for value in row:
+        if value is False:
+            data.append(-1)
+        elif value is True:
+            data.append(1)
+        elif value is None:
+            data.append(0)
+        else:
+            data.append(value)
+    return data
+
+
+def dump_train(feature_names: [], rows: []):
     # names - features names + 1 columns for RCClass identifier. Row - same size as 'names'
     prepare_folder()
-    file_path = os.path.join(CSV_FOLDER, "train.csv")
-    with open(file_path, 'w', encoding='utf-8', newline='') as csv_file:
+    names = [len(rows), len(feature_names)]
+    names.extend(feature_names)
+    train_file_path = os.path.join(CSV_FOLDER, "train.csv")
+    with open(train_file_path, 'w', encoding='utf-8', newline='') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(names)
         for row in rows:
-            data = []
-            for value in row:
-                if value is False:
-                    data.append(-1)
-                elif value is True:
-                    data.append(1)
-                elif value is None:
-                    data.append(0)
-                else:
-                    data.append(value)
-            writer.writerow(data)
-    return file_path
+            writer.writerow(normalise_row_values(row))
+    return train_file_path
+
+
+def dump_test(feature_names: [], rows: []):
+    # names - features names + 1 columns for RCClass identifier. Row - same size as 'names'
+    prepare_folder()
+    names = [len(rows), len(feature_names)]
+    names.extend(feature_names)
+    test_file_path = os.path.join(CSV_FOLDER, "test.csv")
+    with open(test_file_path, 'w', encoding='utf-8', newline='') as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(names)
+        for row in rows:
+            writer.writerow(normalise_row_values(row))
+    return test_file_path
 
 
 def dump_rcclasses(rcclasses: []):

@@ -152,11 +152,14 @@ class AnalyzeView(BaseWithLogs):
         raw_comments = db.session.query(RawComment).limit(count).all()
         # Use only closed PRs.
         prs = db.session.query(PullRequest).filter(PullRequest.state == "closed").limit(pr_number).all()
+        time2 = datetime.today()
+        app.logger.info("Load %d raw comments and %d pull requests in %s seconds.", len(raw_comments), len(prs),\
+                time2 - time1)
         # 1. Get and dump outputs - RCClass-es.
         preanalyze(app.logger, raw_comments, prs)
-        time2 = datetime.today()
-        app.logger.info("Analyzed %d raw comments and %d pull request in %s seconds", len(raw_comments), len(prs),\
-                time2 - time1)
+        time3 = datetime.today()
+        app.logger.info("Analyzed %d raw comments and %d pull request in %s seconds.", len(raw_comments), len(prs),\
+                time3 - time2)
         self.progress_stage = 2
         return "done"
 
