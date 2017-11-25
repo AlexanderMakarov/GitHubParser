@@ -13,7 +13,7 @@ import os
 import random
 from logging import Handler
 from threading import Thread
-from analyzer.ml_dnn import train_net, parse_and_dump_features, NetType
+from analyzer.ml_dnn import train_net, parse_and_dump_features, NetType, predict
 from analyzer.analyzer import parse_git_diff
 from model.git_data import GitLineType
 from parsers.swift_parser import SwiftParser
@@ -200,7 +200,7 @@ class ParseView(BaseWithLogs):
         time1 = datetime.today()
         raw_comments = db.session.query(RawComment).limit(count).all()
         parsed_count = 0
-        for rc in raw_comments:
+        """for rc in raw_comments:
             if rc.path[-3:] == 'xml':
                 parsed_count += 1
                 lines_arr = []
@@ -215,7 +215,10 @@ class ParseView(BaseWithLogs):
                                 lines_arr.append(line.line if line.line[0] != '+' and line.line[0] != '-' else line.line[1:])
                 parser = XmlParser()
                 parsed_results = parser.parse(lines_arr)
-                app.logger.info(str(parsed_results[-1:][0]))
+                app.logger.info(str(parsed_results[-1:][0]))"""
+        pr = db.session.query(PullRequest).filter(PullRequest.number == count).first()
+        rcs_number = db.session.query(RawComment).count()
+        predict(self.logs_keeper, NetType.XML, pr, rcs_number)
 
         time2 = datetime.today()
         app.logger.info("Analyzed %d raw comments from %d in %s seconds", parsed_count, len(raw_comments), time2 - time1)
@@ -296,7 +299,8 @@ class TrainView(BaseWithLogs):
         rcs_number = db.session.query(RawComment).count()
         time1 = datetime.today()
         app.logger.info("Start train assistant in %d steps.", steps_count)
-        for net in [NetType.XML, NetType.SWIFT, NetType.ANY]:
+        # for net in [NetType.XML, NetType.SWIFT, NetType.ANY]:
+        for net in [NetType.XML, NetType.ANY]:
             time_start = datetime.today()
             app.logger.info("Start train %s network in %d steps.", net.value, steps_count)
             train_net(self.logs_keeper, net, rcs_number, steps_count)

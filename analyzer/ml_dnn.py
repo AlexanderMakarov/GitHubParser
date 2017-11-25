@@ -16,7 +16,7 @@ from features.xml_features import XmlFeatures
 from parsers.swift_parser import SwiftParser
 from features.swift_features import SwiftFeatures
 from enum import Enum
-from analyzer.csv_worker import get_second_line_of_test_file
+from analyzer.csv_worker import get_two_lines_of_test_file
 
 
 my_path = os.path.realpath(__file__)
@@ -33,18 +33,21 @@ class NetType(Enum):
 class NetKeeper:
     classifier: None
     net_type: NetType = None
-    features_names: [] = []
+    feature_names: [] = []
+    raw_comments_number: int = 0
 
-    def __init__(self, net_type, classifier, features_names):
+    def __init__(self, net_type, classifier, feature_names, raw_comments_number):
         self.net_type = net_type
         self.classifier = classifier
-        self.features_names = features_names
+        self.feature_names = feature_names
+        self.raw_comments_number = raw_comments_number
 
     @staticmethod
     def get_feature_columns(net_type: NetType):
-        second_row = get_second_line_of_test_file(net_type.value)
+        first_row, second_row = get_two_lines_of_test_file(net_type.value)
+        feature_names = first_row[2:]
         features_number = len(second_row) - 1
-        return [tf.feature_column.numeric_column("x", shape=[features_number])]
+        return [tf.feature_column.numeric_column("x", shape=[features_number])], feature_names
 
     @staticmethod
     def get_for_type(log_handler: Handler, net_type: NetType, raw_comments_number: int):
@@ -54,12 +57,14 @@ class NetKeeper:
             logger = tf.logging._logger
             if log_handler not in logger.handlers:
                 logger.addHandler(log_handler)
-            classifier = tf.estimator.DNNClassifier(feature_columns=NetKeeper.get_feature_columns(net_type),
+            feature_columns, feature_names = NetKeeper.get_feature_columns(net_type)
+            classifier = tf.estimator.DNNClassifier(feature_columns=feature_columns,
                                                     hidden_units=[200, 400, 200],  # TODO magic numbers
                                                     n_classes=raw_comments_number,
                                                     model_dir=os.path.join(instance_path, net_type.value + "_model"))
-            net_keepers[net_type] = classifier
-            return classifier
+            keeper = NetKeeper(net_type, classifier, feature_names, raw_comments_number)
+            net_keepers[net_type] = keeper
+            return keeper
 
 
 net_keepers = dict()
@@ -333,7 +338,7 @@ def train_net(log_handler: Handler, net_type: NetType, raw_comments_number: int,
             target_column=1)
     # Define net.
     features_number = training_set.data.shape[1]
-    classifier = NetKeeper.get_for_type(log_handler, net_type, raw_comments_number)
+    classifier = NetKeeper.get_for_type(log_handler, net_type, raw_comments_number).classifier
     # Define the training inputs.
     train_len = len(training_set.data)
     train_input_fn = tf.estimator.inputs.numpy_input_fn(
@@ -365,10 +370,13 @@ def train_net(log_handler: Handler, net_type: NetType, raw_comments_number: int,
 
 def predict(log_handler: Handler, net_type: NetType, pr: PullRequest, raw_comments_number: int):
     # Get net.
-    classifier = NetKeeper.get_for_type(log_handler, net_type, raw_comments_number)
+    keeper = NetKeeper.get_for_type(log_handler, net_type, raw_comments_number)
+    classifier = keeper.classifier
+    logger = tf.logging._logger
 
     # Parse features from PR and dump.
-    predict_csv_path = ""
+    prs_xml_features_list, prs_swift_features_list, prs_any_features_list = get_features_from_prs([pr], [])
+    predict_csv_path = dump_train("predict_" + str(net_type.value), keeper.feature_names, prs_xml_features_list)
 
     # Collect input data for net.
     predict_set = tf.contrib.learn.datasets.base.load_csv_with_header(

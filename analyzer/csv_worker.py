@@ -87,8 +87,9 @@ def dump_rcclasses(rcclasses: []):
     return file_path
 
 
-def get_second_line_of_test_file(net_name: str):
+def get_two_lines_of_test_file(net_name: str):
     file_path = get_test_csv_path(net_name)
     with open(file_path, 'r', encoding='utf-8', newline='') as csv_file:
         reader = csv.reader(csv_file)
-        return list(reader)[1]
+        values = list(reader)
+        return values[0], values[1]
