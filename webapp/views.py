@@ -16,7 +16,7 @@ from threading import Thread
 from analyzer.ml_dnn import train_net, parse_and_dump_features
 from analyzer.analyzer import parse_git_diff
 from model.git_data import GitLineType
-from parsers.SwiftParser import SwiftParser
+from parsers.swift_parser import SwiftParser
 from parsers.xml_parser import XmlParser
 
 
@@ -167,7 +167,7 @@ class AnalyzeView(BaseWithLogs):
         time2 = datetime.today()
         app.logger.info("Load %d raw comments and %d pull requests in %s seconds.", len(raw_comments), len(prs),
                         time2 - time1)
-        parse_and_dump_features(app.logger, raw_comments, prs, train_part, 'swift')  # TODO: hardcoded
+        parse_and_dump_features(app.logger, raw_comments, prs, train_part)
         time3 = datetime.today()
         app.logger.info("END: Analyzed %d raw comments and %d pull request in %s seconds.", len(raw_comments), len(prs),
                         time3 - time2)

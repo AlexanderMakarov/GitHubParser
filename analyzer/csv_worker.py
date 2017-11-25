@@ -4,13 +4,21 @@ import os
 
 my_path = os.path.realpath(__file__)
 CSV_FOLDER = os.path.join(my_path, "..", "..", "instance", "csv")
-TRAIN_CSV_PATH = os.path.join(CSV_FOLDER, "train.csv")
-TEST_CSV_PATH = os.path.join(CSV_FOLDER, "test.csv")
+TRAIN_CSV_NAME = "train.csv"
+TEST_CSV_NAME = "test.csv"
 
 
 def _prepare_folder():
     if not os.path.exists(CSV_FOLDER):
         os.makedirs(CSV_FOLDER)
+
+
+def get_train_csv_path(net_name: str):
+    return os.path.join(CSV_FOLDER, "%s_%s" % (net_name, TRAIN_CSV_NAME))
+
+
+def get_test_csv_path(net_name: str):
+    return os.path.join(CSV_FOLDER, "%s_%s" % (net_name, TEST_CSV_NAME))
 
 
 def dump_features(names: [], rows: []):
@@ -40,30 +48,32 @@ def normalise_row_values(row):
     return data
 
 
-def dump_train(feature_names: [], rows: []):
+def dump_train(net_name: str, feature_names: [], rows: []):
     # names - features names + 1 columns for RCClass identifier. Row - same size as 'names'
     _prepare_folder()
     names = [len(rows), len(feature_names)]
     names.extend(feature_names)
-    with open(TRAIN_CSV_PATH, 'w', encoding='utf-8', newline='') as csv_file:
+    file_path = get_train_csv_path(net_name)
+    with open(file_path, 'w', encoding='utf-8', newline='') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(names)
         for row in rows:
             writer.writerow(normalise_row_values(row))
-    return TRAIN_CSV_PATH
+    return file_path
 
 
-def dump_test(feature_names: [], rows: []):
+def dump_test(net_name: str, feature_names: [], rows: []):
     # names - features names + 1 columns for RCClass identifier. Row - same size as 'names'
     _prepare_folder()
     names = [len(rows), len(feature_names)]
     names.extend(feature_names)
-    with open(TEST_CSV_PATH, 'w', encoding='utf-8', newline='') as csv_file:
+    file_path = get_test_csv_path(net_name)
+    with open(file_path, 'w', encoding='utf-8', newline='') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerow(names)
         for row in rows:
             writer.writerow(normalise_row_values(row))
-    return TEST_CSV_PATH
+    return file_path
 
 
 def dump_rcclasses(rcclasses: []):

@@ -27,7 +27,6 @@ class SwiftParser:
             features.line = line.rstrip()
             tokens_count = 0
             is_before_any_token = True
-            print(line)
 
             for token in tokens:
                 tokens_count += 1
@@ -134,7 +133,7 @@ class SwiftParser:
             features.in_lambda = 1 if is_lambda_scope else -1
             features.in_loop = 1 if is_loop_scope else -1
             features.in_guard = 1 if is_guard_scope else -1
-           # features.comment_len = comments_len
+            # features.comment_len = comments_len
             features.lineLen = line.__len__()
             line_results.append(features)
         return line_results
