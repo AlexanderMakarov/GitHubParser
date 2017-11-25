@@ -403,8 +403,8 @@ def predict(log_handler: Handler, net_type: NetType, pr: PullRequest, raw_commen
     predicted_classes = [p["classes"] for p in predictions]  # Each 'p' is as dict.
     logger = tf.logging._logger
     for i, item in enumerate(predicted_classes):
-        for clazz in item:
-            prediction = item[clazz]
+        for k, _ in enumerate(item):
+            prediction = item[k]
             if prediction > 0.001:
-                logger.info("%d line: %d comment possible on %f", i + 1, clazz, prediction)
+                logger.info("%d line: comment with %d ID possible as %f", i + 1, k, prediction)
     return predicted_classes  # In the same order as input data.
