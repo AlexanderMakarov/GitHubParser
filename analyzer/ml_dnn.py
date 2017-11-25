@@ -34,7 +34,7 @@ def check_binary_line(line: str):
 
 
 def _add_git_file_features(file: GitFile, is_only_last_line=False):
-    features = []
+    features_list = []
     file_level_features = dict()
     file: GitFile
     file_level_features["git_is_%s" % file.file_type] = True
@@ -66,8 +66,8 @@ def _add_git_file_features(file: GitFile, is_only_last_line=False):
                 line_raw = line_raw[1:]
             line_level_features["git_line_length"] = len(line_raw)
             # TODO add more features.
-            features.append(line_level_features)  # Save features.
-    return features
+            features_list.append(line_level_features)  # Save features.
+    return features_list
 
 
 def get_features_from_rcs(logger: Logger, rcs: []):
@@ -148,10 +148,11 @@ def get_features_from_prs(prs: [], files: []):
         any_features_tmp_list = _add_git_file_features(file)
 
         # TODO add XMl and SWIFT features parsing.
+        # TODO if use for "predicate" then remember position if patch somehow.
 
         for line_features_dict in any_features_tmp_list:
             line_features_dict["rc_id"] = 0
-            any_features_list.extend(line_features_dict)
+            any_features_list.append(line_features_dict)
     return xml_features_list, swift_features_list, any_features_list
 
 
@@ -164,7 +165,7 @@ def get_features_names(records_list: []):
     return list(feature_names)
 
 
-def shuffle_split_dump_records(logger: Logger, net_name: str, records: [], feature_names: [], train_part: float):
+def shuffle_split_dump_records(logger: Logger, net_name: NetType, records: [], feature_names: [], train_part: float):
     time1 = datetime.today()
     rows = []
     for record_dict in records:
@@ -179,14 +180,14 @@ def shuffle_split_dump_records(logger: Logger, net_name: str, records: [], featu
     train_rows = rows[0: train_len]
     test_rows = rows[train_len:]
     time2 = datetime.today()
-    logger.info("%s: total %d training and %d test records prepared in %s seconds.", net_name, len(train_rows),
+    logger.info("%s: total %d training and %d test records prepared in %s seconds.", net_name.value, len(train_rows),
                 len(test_rows), time2 - time1)
     # Dump names and rows.
-    train_file_path = dump_train(net_name, feature_names, train_rows)
-    test_file_path = dump_test(net_name, feature_names, test_rows)
+    train_file_path = dump_train(net_name.value, feature_names, train_rows)
+    test_file_path = dump_test(net_name.value, feature_names, test_rows)
     time3 = datetime.today()
-    logger.info("%s: dumped all records into '%s' and '%s' in %s seconds.", net_name, train_file_path, test_file_path,
-                time3 - time2)
+    logger.info("%s: dumped all records into '%s' and '%s' in %s seconds.", net_name.value, train_file_path,
+                test_file_path, time3 - time2)
 
 
 def parse_and_dump_features(logger: Logger, rcs: [], prs: [], train_part: float):
