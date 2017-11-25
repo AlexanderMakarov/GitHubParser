@@ -188,7 +188,10 @@ def get_features_from_prs(prs: [], files: []):
         git_files = parse_git_diff(str(pr.diff), None)
         if len(git_files) > 20:
             continue  # Skip really big pull requests.
-        target_git_files = list(filter(lambda x: x.file_path in files, git_files))
+        if files is not None:
+            target_git_files = list(filter(lambda x: x.file_path in files, git_files))
+        else:
+            target_git_files = git_files
         pr_files.extend(target_git_files)
     xml_features_list = []
     swift_features_list = []
@@ -220,9 +223,10 @@ def get_features_from_prs(prs: [], files: []):
             else:
                 any_features_list.append(any_features_dict)
     # Remove most part of lines because ratio for +/- cases is about 1/10000. Use only 1% of data.
-    xml_features_list = _shrink_list_randomly(xml_features_list, 0.01)
-    swift_features_list = _shrink_list_randomly(swift_features_list, 0.01)
-    any_features_list = _shrink_list_randomly(any_features_list, 0.01)
+    if files is not None:
+        xml_features_list = _shrink_list_randomly(xml_features_list, 0.01)
+        swift_features_list = _shrink_list_randomly(swift_features_list, 0.01)
+        any_features_list = _shrink_list_randomly(any_features_list, 0.01)
     return xml_features_list, swift_features_list, any_features_list
 
 
@@ -375,17 +379,23 @@ def predict(log_handler: Handler, net_type: NetType, pr: PullRequest, raw_commen
     logger = tf.logging._logger
 
     # Parse features from PR and dump.
-    prs_xml_features_list, prs_swift_features_list, prs_any_features_list = get_features_from_prs([pr], [])
-    predict_csv_path = dump_train("predict_" + str(net_type.value), keeper.feature_names, prs_xml_features_list)
-
+    prs_xml_features_list, prs_swift_features_list, prs_any_features_list = get_features_from_prs([pr], None)
+    #predict_csv_path = dump_train("predict_" + str(net_type.value), keeper.feature_names, prs_xml_features_list)
+    rows = []
+    for record_dict in prs_xml_features_list:
+        row = []
+        for name in keeper.feature_names:
+            row.append(record_dict[name] if name in record_dict else 0)
+        rows.append(row)
     # Collect input data for net.
-    predict_set = tf.contrib.learn.datasets.base.load_csv_with_header(
-            filename=predict_csv_path,
-            target_dtype=np.int,
-            features_dtype=np.int,
-            target_column=1)
+    # predict_set = tf.contrib.learn.datasets.base.load_csv_with_header(
+    #         filename=predict_csv_path,
+    #         target_dtype=np.int,
+    #         features_dtype=np.int)
+
+    new_samples = np.array(rows, dtype=np.int)
     predict_input_fn = tf.estimator.inputs.numpy_input_fn(
-            x={"x": np.array(predict_set.data)},
+            x={"x": new_samples},
             num_epochs=1,
             shuffle=False)
 
