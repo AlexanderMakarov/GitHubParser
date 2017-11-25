@@ -76,10 +76,6 @@ class XmlParser:
 
             opened_tags = features.openedTagsCnt - features.closedTagsCnt
             opened_comments = features.openedCommentsCnt - features.closedCommentsCnt
-            features.avgAttrLen = attrs_len / features.attrCnt if features.attrCnt > 0 else 0
-            features.avgAttrValLen = attrs_val_len / features.attrCnt if features.attrCnt > 0 else 0
-            features.tagsAvgLen = tags_len / features.tagsCount if features.tagsCount > 0 else 0
-            features.avgCommentsLen = comments_len / features.commentsCnt if features.commentsCnt > 0 else 0
             features.lineLen = line.__len__()
             lineResults.append(features)
         return lineResults
