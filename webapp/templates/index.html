@@ -100,6 +100,28 @@
             e.preventDefault(); // Don't execute the actual submit of the form.
         });
     </script>
+     <form id="parse_comment_code_swift" action="/parseSwift" method="post" role="form">
+        <input name="count" type="number" value="20">
+        <button type="submit">Parse Swift</button>
+    </form>
+    <script>
+        $("#parse_comment_code_swift").submit(function(e) {
+            console.log("prevent parse_comment_code_swift");
+            $.ajax({
+                type: "POST",
+                url: "/parseSwift",
+                data: $("#parse_comment_code_swift").serialize(), // Serializes the form's elements.
+                success: function(data) {
+                    startLog('/parseSwift/log')
+                },
+                error: function(error) {
+                    console.log(error);
+                    alert(error);
+                }
+            });
+            e.preventDefault(); // Don't execute the actual submit of the form.
+        });
+    </script>
     {{ poll() }}
     {{ log() }}
     </div>

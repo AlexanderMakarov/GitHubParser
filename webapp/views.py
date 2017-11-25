@@ -17,6 +17,7 @@ from analyzer.ml_dnn import preanalyze
 from analyzer.analyzer import parse_git_diff
 from model.git_data import GitLineType
 from parsers.XmlParser import XmlParser
+from parsers.SwiftParser import SwiftParser
 
 class HomeView(BaseView):
     route_base = "/"
@@ -213,6 +214,54 @@ class ParseView(BaseWithLogs):
     def parse_log(self):
         return self.get_logs()
 
+class ParseSwiftView(BaseWithLogs):
+    route_base = "/parseSwift"
+
+    @has_access
+    @expose("", methods=['POST'])
+    def parse_with_params(self):
+        count = -1  # '-1' means "all".
+        if 'count' in request.form:
+            count = int(request.form['count'])
+
+        thread = Thread(name="parse_swift", target=ParseSwiftView.parse_swift, args=[self, count])
+        thread.start()
+        return "parse_swift: count=%d" % count
+
+    def parse_swift(self, count: int):
+        self.init_logs_keeper()
+        self.progress_stage = 1
+        time1 = datetime.today()
+        raw_comments = db.session.query(RawComment).limit(count).all()
+        parsed_count = 0
+        for rc in raw_comments:
+            if rc.path[-5:] == 'swift':
+                parsed_count += 1
+                lines_arr = []
+                git_files = parse_git_diff(rc.diff_hunk, rc.path)
+                assert len(git_files) == 1, "parse_git_diff returns not 1 GitFile"
+                for file in git_files:
+                    assert len(file.pieces) == 1, "git file has more than 1 piece"
+                    for piece in file.pieces:
+                        line_type = piece.lines[len(piece.lines) - 1].type
+                        for line in piece.lines:
+                            if line.type == GitLineType.UNCHANGED or line.type == line_type:
+                                lines_arr.append(line.line if line.line[0] != '+' and line.line[0] != '-' else line.line[1:])
+                parser = SwiftParser()
+                parsed_results = parser.parse(lines_arr)
+                app.logger.info(str(parsed_results[-1:][0]))
+
+        time2 = datetime.today()
+        app.logger.info("Analyzed %d raw comments from %d in %s seconds", parsed_count, len(raw_comments), time2 - time1)
+
+        return "done"
+
+    @has_access
+    @expose("/log")
+    def parse_swift_log(self):
+        return self.get_logs()
+
+
 
 class TrainView(BaseWithLogs):
     route_base = "/train"
@@ -348,3 +397,4 @@ appbuilder.add_view_no_menu(AnalyzeView)
 appbuilder.add_view_no_menu(TrainView)
 appbuilder.add_view_no_menu(SiteMapView)
 appbuilder.add_view_no_menu(ParseView)
+appbuilder.add_view_no_menu(ParseSwiftView)
