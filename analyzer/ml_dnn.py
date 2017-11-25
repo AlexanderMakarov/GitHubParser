@@ -16,6 +16,7 @@ from features.xml_features import XmlFeatures
 from parsers.swift_parser import SwiftParser
 from features.swift_features import SwiftFeatures
 from enum import Enum
+from analyzer.csv_worker import get_second_line_of_test_file
 
 
 my_path = os.path.realpath(__file__)
@@ -29,11 +30,47 @@ class NetType(Enum):
     ANY = "ANY"
 
 
+class NetKeeper:
+    classifier: None
+    net_type: NetType = None
+    features_names: [] = []
+
+    def __init__(self, net_type, classifier, features_names):
+        self.net_type = net_type
+        self.classifier = classifier
+        self.features_names = features_names
+
+    @staticmethod
+    def get_feature_columns(net_type: NetType):
+        second_row = get_second_line_of_test_file(net_type.value)
+        features_number = len(second_row) - 1
+        return [tf.feature_column.numeric_column("x", shape=[features_number])]
+
+    @staticmethod
+    def get_for_type(log_handler: Handler, net_type: NetType, raw_comments_number: int):
+        if net_type in net_keepers:
+            return net_keepers[net_type]
+        else:
+            logger = tf.logging._logger
+            if log_handler not in logger.handlers:
+                logger.addHandler(log_handler)
+            classifier = tf.estimator.DNNClassifier(feature_columns=NetKeeper.get_feature_columns(net_type),
+                                                    hidden_units=[200, 400, 200],  # TODO magic numbers
+                                                    n_classes=raw_comments_number,
+                                                    model_dir=os.path.join(instance_path, net_type.value + "_model"))
+            net_keepers[net_type] = classifier
+            return classifier
+
+
+net_keepers = dict()
+
+
 def check_binary_line(line: str):
     return "\x00" in line or any(ord(x) > 0x80 for x in line)
 
 
 def _add_git_file_features(file: GitFile, is_only_last_line=False):
+    # Adds "line_raw" value which is not a feature!
     features_list = []
     file_level_features = dict()
     file: GitFile
@@ -65,6 +102,7 @@ def _add_git_file_features(file: GitFile, is_only_last_line=False):
                 line_level_features["git_line_type"] = -1
                 line_raw = line_raw[1:]
             line_level_features["git_line_length"] = len(line_raw)
+            line_level_features["line_raw"] = line_raw
             # TODO add more features.
             features_list.append(line_level_features)  # Save features.
     return features_list
@@ -94,6 +132,7 @@ def get_features_from_rcs(logger: Logger, rcs: []):
         any_features_dict = all_lines_features[0]
         # Add output value - rc_id.
         any_features_dict["rc_id"] = rc.id
+        any_features_dict.pop('line_raw', None)  # Remove extra key.
         # Parse XML features.
         if git_file.file_type == FileType.XML:
             xml_feature_names = XmlFeatures.get_headers()
@@ -149,15 +188,32 @@ def get_features_from_prs(prs: [], files: []):
     xml_features_list = []
     swift_features_list = []
     any_features_list = []
-    for file in pr_files:
-        any_features_tmp_list = _add_git_file_features(file)
+    xml_parser = XmlParser()
+    swift_parser = SwiftParser()
+    xml_feature_names = XmlFeatures.get_headers()
+    swift_feature_names = SwiftFeatures.get_headers()
+    for git_file in pr_files:
+        any_features_tmp_list = _add_git_file_features(git_file)
 
-        # TODO add XMl and SWIFT features parsing.
         # TODO if use for "predicate" then remember position if patch somehow.
 
-        for line_features_dict in any_features_tmp_list:
-            line_features_dict["rc_id"] = 0
-            any_features_list.append(line_features_dict)
+        for any_features_dict in any_features_tmp_list:
+            any_features_dict["rc_id"] = 0
+            line_raw = any_features_dict.pop('line_raw', None)
+            # Parse XML features.
+            if git_file.file_type == FileType.XML:
+                xml_features_tmp = xml_parser.parse([line_raw])[0]
+                xml_features_dict = dict(zip(xml_feature_names, xml_features_tmp.serialize()))
+                xml_features_dict.update(any_features_dict)
+                xml_features_list.append(xml_features_dict)
+            # Parse Swift features.
+            elif git_file.file_type == FileType.SWIFT:
+                swift_features_tmp = swift_parser.parse([line_raw])[0]
+                swift_features_dict = dict(zip(swift_feature_names, swift_features_tmp.serialize()))
+                swift_features_dict.update(any_features_dict)
+                swift_features_list.append(swift_features_dict)
+            else:
+                any_features_list.append(any_features_dict)
     # Remove most part of lines because ratio for +/- cases is about 1/10000. Use only 1% of data.
     xml_features_list = _shrink_list_randomly(xml_features_list, 0.01)
     swift_features_list = _shrink_list_randomly(swift_features_list, 0.01)
@@ -264,9 +320,6 @@ def read_csv(path_to_csv: str, feature_names: []):
 
 
 def train_net(log_handler: Handler, net_type: NetType, raw_comments_number: int, steps_number: int):
-    logger = tf.logging._logger
-    if log_handler not in logger.handlers:
-        logger.addHandler(log_handler)
     # Define pipelines to parse features from CSVs.
     training_set = tf.contrib.learn.datasets.base.load_csv_with_header(
             filename=get_train_csv_path(net_type.value),
@@ -280,11 +333,7 @@ def train_net(log_handler: Handler, net_type: NetType, raw_comments_number: int,
             target_column=1)
     # Define net.
     features_number = training_set.data.shape[1]
-    feature_columns = [tf.feature_column.numeric_column("x", shape=[features_number])]
-    classifier = tf.estimator.DNNClassifier(feature_columns=feature_columns,
-            hidden_units=[200, 400, 200],  # TODO magic numbers
-            n_classes=raw_comments_number,
-            model_dir=os.path.join(instance_path, net_type.value + "_model"))
+    classifier = NetKeeper.get_for_type(log_handler, net_type, raw_comments_number)
     # Define the training inputs.
     train_len = len(training_set.data)
     train_input_fn = tf.estimator.inputs.numpy_input_fn(
@@ -294,6 +343,7 @@ def train_net(log_handler: Handler, net_type: NetType, raw_comments_number: int,
             shuffle=False)
     # Train model.
     time1 = datetime.today()
+    logger = tf.logging._logger
     logger.info("%s: start training for %d records each %d features %s steps", net_type.value, train_len,
                 features_number, steps_number)
     classifier.train(input_fn=train_input_fn, steps=steps_number)
@@ -311,3 +361,32 @@ def train_net(log_handler: Handler, net_type: NetType, raw_comments_number: int,
     accuracy_score = classifier.evaluate(input_fn=test_input_fn)["accuracy"]
     time3 = datetime.today()
     logger.info("%s: test accuracy is %f. Takes %s seconds.", net_type.value, accuracy_score, time3 - time2)
+
+
+def predict(log_handler: Handler, net_type: NetType, pr: PullRequest, raw_comments_number: int):
+    # Get net.
+    classifier = NetKeeper.get_for_type(log_handler, net_type, raw_comments_number)
+
+    # Parse features from PR and dump.
+    predict_csv_path = ""
+
+    # Collect input data for net.
+    predict_set = tf.contrib.learn.datasets.base.load_csv_with_header(
+            filename=predict_csv_path,
+            target_dtype=np.int,
+            features_dtype=np.int,
+            target_column=1)
+    predict_input_fn = tf.estimator.inputs.numpy_input_fn(
+            x={"x": np.array(predict_set.data)},
+            num_epochs=1,
+            shuffle=False)
+
+    predictions = list(classifier.predict(input_fn=predict_input_fn))  # 1D tensor same length as input data.
+    predicted_classes = [p["classes"] for p in predictions]  # Each 'p' is as dict.
+    logger = tf.logging._logger
+    for i, item in enumerate(predicted_classes):
+        for clazz in item:
+            prediction = item[clazz]
+            if prediction > 0.001:
+                logger.info("%d line: %d comment possible on %f", i + 1, clazz, prediction)
+    return predicted_classes  # In the same order as input data.

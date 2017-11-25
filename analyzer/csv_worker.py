@@ -85,3 +85,10 @@ def dump_rcclasses(rcclasses: []):
         for row in rcclasses:
             writer.writerow([row.common_message, row.serialize_raw_comments()])
     return file_path
+
+
+def get_second_line_of_test_file(net_name: str):
+    file_path = get_test_csv_path(net_name)
+    with open(file_path, 'r', encoding='utf-8', newline='') as csv_file:
+        reader = csv.reader(csv_file)
+        return list(reader)[1]
