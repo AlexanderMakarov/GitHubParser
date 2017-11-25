@@ -1,6 +1,6 @@
 from pygments import lex
 from pygments.lexers.objective import SwiftLexer
-from features.SwiftFeatures import SwiftFeatures
+from features.swift_features import SwiftFeatures
 
 
 class SwiftParser:

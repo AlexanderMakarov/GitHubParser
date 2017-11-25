@@ -13,7 +13,7 @@ import os
 import random
 from logging import Handler
 from threading import Thread
-from analyzer.ml_dnn import train_net, parse_and_dump_features
+from analyzer.ml_dnn import train_net, parse_and_dump_features, NetType
 from analyzer.analyzer import parse_git_diff
 from model.git_data import GitLineType
 from parsers.swift_parser import SwiftParser
@@ -293,11 +293,17 @@ class TrainView(BaseWithLogs):
         self.init_logs_keeper()
         self.progress_stage = 1
         app.logger.info("START: Train assistant in %d steps.", steps_count)
-        rcs_count = db.session.query(RawComment).count()
+        rcs_number = db.session.query(RawComment).count()
         time1 = datetime.today()
-        train_net(app.logger, rcs_count, steps_count)
+        app.logger.info("Start train assistant in %d steps.", steps_count)
+        for net in [NetType.XML, NetType.SWIFT, NetType.ANY]:
+            time_start = datetime.today()
+            app.logger.info("Start train %s network in %d steps.", net.value, steps_count)
+            train_net(self.logs_keeper, net, rcs_number, steps_count)
+            time_end = datetime.today()
+            app.logger.info("Trained %s network using in %s seconds.", net.value, time_end - time_start)
         time2 = datetime.today()
-        app.logger.info("END: Trained using %d stepss in %s seconds. Code review helper is ready for assist!",
+        app.logger.info("END: Trained using %d steps in %s seconds. Code review helper is ready for assist!",
                         steps_count, time2 - time1)
         self.progress_stage = 2
         return "done"

@@ -14,7 +14,7 @@ import random
 from parsers.xml_parser import XmlParser
 from features.xml_features import XmlFeatures
 from parsers.swift_parser import SwiftParser
-from features.SwiftFeatures import SwiftFeatures
+from features.swift_features import SwiftFeatures
 from enum import Enum
 
 
@@ -130,6 +130,11 @@ def get_features_from_rcs(logger: Logger, rcs: []):
     return xml_features_list, swift_features_list, any_features_list, files
 
 
+def _shrink_list_randomly(items, ratio: float):
+    required_number = int(len(items) * ratio)
+    return random.sample(items, required_number)
+
+
 def get_features_from_prs(prs: [], files: []):
     # Analyze only files from list to decrease count of trash files.
     pr_files = []
@@ -153,6 +158,10 @@ def get_features_from_prs(prs: [], files: []):
         for line_features_dict in any_features_tmp_list:
             line_features_dict["rc_id"] = 0
             any_features_list.append(line_features_dict)
+    # Remove most part of lines because ratio for +/- cases is about 1/10000. Use only 1% of data.
+    xml_features_list = _shrink_list_randomly(xml_features_list, 0.01)
+    swift_features_list = _shrink_list_randomly(swift_features_list, 0.01)
+    any_features_list = _shrink_list_randomly(any_features_list, 0.01)
     return xml_features_list, swift_features_list, any_features_list
 
 
@@ -255,7 +264,6 @@ def read_csv(path_to_csv: str, feature_names: []):
 
 
 def train_net(log_handler: Handler, net_type: NetType, raw_comments_number: int, steps_number: int):
-    #tf.logging.set_verbosity(tf.logging.INFO)
     logger = tf.logging._logger
     if log_handler not in logger.handlers:
         logger.addHandler(log_handler)
