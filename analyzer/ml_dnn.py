@@ -11,6 +11,8 @@ from logging import Logger, Handler
 from analyzer.git_analyze import parse_git_diff
 from datetime import datetime
 import random
+from parsers.xml_parser import XmlParser
+from features.xml_features import XmlFeatures
 
 
 my_path = os.path.realpath(__file__)
@@ -51,7 +53,7 @@ def _add_file_features(file: GitFile, is_only_last_line=False):
     return features
 
 
-def get_git_features_from_rcs(logger: Logger, rcs: []):
+def get_features_from_rcs(logger: Logger, rcs: []):
     # returns tuple of features and path where RC's were found.
     features_sets = []
     files = set()
@@ -62,16 +64,33 @@ def get_git_features_from_rcs(logger: Logger, rcs: []):
         if git_files_len != 1:
             logger.warning("parse_git_diff returns %d GitFile-s from %d raw comment", git_files_len, rc.id)
             continue
-        all_lines_features = _add_file_features(git_files[0], True)
+        git_file: GitFile = git_files[0]
+        # Parse GIT features.
+        all_lines_features = _add_file_features(git_file, True)
         assert len(all_lines_features) == 1, "_add_file_features returns not 1 futures set"
         line_features = all_lines_features[0]
+        # Parse XML features.
+        if git_file.file_type == FileType.XML:
+            xml_feature_names = XmlFeatures.get_headers()
+            parser = XmlParser()
+            for piece in git_file.pieces:
+                last_line_type = piece.lines[len(piece.lines) - 1].type
+                lines_arr = []
+                for line in piece.lines:
+                    if line.type == GitLineType.UNCHANGED or line.type == last_line_type:
+                        raw_line = line.line[1:] if line.type is not GitLineType.UNCHANGED else line.line
+                        lines_arr.append(raw_line)
+                xml_features = parser.parse(lines_arr)[0]
+                xml_features_dict = dict(zip(xml_feature_names, xml_features.serialize()))
+                line_features.update(xml_features_dict)
+        # Add output value - rc_id.
         line_features["rc_id"] = rc.id
         features_sets.append(line_features)
         files.add(rc.path)
     return (features_sets, files)
 
 
-def get_git_features_from_prs(prs: [], files: []):
+def get_features_from_prs(prs: [], files: []):
     # Analyze only files from list to decrease count of trash files.
     pr_files = []
     # Pre-get files because all of them without positive output - raw comments. It decreases RAM usage.
@@ -93,12 +112,12 @@ def parse_and_dump_features(logger: Logger, rcs: [], prs: [], train_part: float)
     # Returns tuple (feature_names, records_count, path_to_train_file, path_to_test_file)
     # 1) First parse RC's to filter PR-s.
     time1 = datetime.today()
-    features, files = get_git_features_from_rcs(logger, rcs)  # TODO change on full set.
+    features, files = get_features_from_rcs(logger, rcs)
     # 2) First from PR-s
     time2 = datetime.today()
     rcs_features_len = len(features)
     logger.info("Analyzed %d raw comments from %d files in %s seconds", rcs_features_len, len(files), time2 - time1)
-    prs_features = get_git_features_from_prs(prs, files)
+    prs_features = get_features_from_prs(prs, files)
     time3 = datetime.today()
     # 3) collect features together and dump.
     features.extend(prs_features)

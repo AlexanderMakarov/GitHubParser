@@ -16,7 +16,7 @@ from threading import Thread
 from analyzer.ml_dnn import train_net, parse_and_dump_features
 from analyzer.analyzer import parse_git_diff
 from model.git_data import GitLineType
-from parsers.XmlParser import XmlParser
+from parsers.xml_parser import XmlParser
 
 
 class HomeView(BaseView):
