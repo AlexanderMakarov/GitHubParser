@@ -167,7 +167,7 @@ class AnalyzeView(BaseWithLogs):
         time2 = datetime.today()
         app.logger.info("Load %d raw comments and %d pull requests in %s seconds.", len(raw_comments), len(prs),
                         time2 - time1)
-        parse_and_dump_features(app.logger, raw_comments, prs, train_part)
+        parse_and_dump_features(app.logger, raw_comments, prs, train_part, 'swift')  # TODO: hardcoded
         time3 = datetime.today()
         app.logger.info("END: Analyzed %d raw comments and %d pull request in %s seconds.", len(raw_comments), len(prs),
                         time3 - time2)

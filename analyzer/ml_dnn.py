@@ -13,7 +13,8 @@ from datetime import datetime
 import random
 from parsers.xml_parser import XmlParser
 from features.xml_features import XmlFeatures
-
+from parsers.SwiftParser import SwiftParser
+from features.SwiftFeatures import SwiftFeatures
 
 my_path = os.path.realpath(__file__)
 instance_path = os.path.join(my_path, "..", "..", "instance")
@@ -53,7 +54,7 @@ def _add_file_features(file: GitFile, is_only_last_line=False):
     return features
 
 
-def get_features_from_rcs(logger: Logger, rcs: []):
+def get_xml_features_from_rcs(logger: Logger, rcs: []):
     # returns tuple of features and path where RC's were found.
     features_sets = []
     files = set()
@@ -89,6 +90,41 @@ def get_features_from_rcs(logger: Logger, rcs: []):
         files.add(rc.path)
     return (features_sets, files)
 
+def get_swift_features_from_rcs(logger: Logger, rcs: []):
+    # returns tuple of features and path where RC's were found.
+    features_sets = []
+    files = set()
+    for rc in rcs:
+        rc: RawComment
+        git_files = parse_git_diff(rc.diff_hunk, rc.path)
+        git_files_len = len(git_files)
+        if git_files_len != 1:
+            logger.warning("parse_git_diff returns %d GitFile-s from %d raw comment", git_files_len, rc.id)
+            continue
+        git_file: GitFile = git_files[0]
+        # Parse GIT features.
+        all_lines_features = _add_file_features(git_file, True)
+        assert len(all_lines_features) == 1, "_add_file_features returns not 1 futures set"
+        line_features = all_lines_features[0]
+        # Parse XML features.
+        if git_file.file_type == FileType.SWIFT:
+            swift_feature_names = SwiftFeatures.get_headers()
+            swift_parser = SwiftParser()
+            for piece in git_file.pieces:
+                last_line_type = piece.lines[len(piece.lines) - 1].type
+                lines_arr = []
+                for line in piece.lines:
+                    if line.type == GitLineType.UNCHANGED or line.type == last_line_type:
+                        raw_line = line.line[1:] if line.type is not GitLineType.UNCHANGED else line.line
+                        lines_arr.append(raw_line)
+                swift_features = swift_parser.parse(lines_arr)[0]
+                swift_features_dict = dict(zip(swift_feature_names, swift_features.serialize()))
+                line_features.update(swift_features_dict)
+        # Add output value - rc_id.
+        line_features["rc_id"] = rc.id
+        features_sets.append(line_features)
+        files.add(rc.path)
+    return (features_sets, files)
 
 def get_features_from_prs(prs: [], files: []):
     # Analyze only files from list to decrease count of trash files.
@@ -108,11 +144,11 @@ def get_features_from_prs(prs: [], files: []):
     return result
 
 
-def parse_and_dump_features(logger: Logger, rcs: [], prs: [], train_part: float):
+def parse_and_dump_features(logger: Logger, rcs: [], prs: [], train_part: float, neural_type: str):
     # Returns tuple (feature_names, records_count, path_to_train_file, path_to_test_file)
     # 1) First parse RC's to filter PR-s.
     time1 = datetime.today()
-    features, files = get_features_from_rcs(logger, rcs)
+    features, files = get_xml_features_from_rcs(logger, rcs) if neural_type == 'xml' else get_swift_features_from_rcs(logger, rcs)
     # 2) First from PR-s
     time2 = datetime.today()
     rcs_features_len = len(features)
