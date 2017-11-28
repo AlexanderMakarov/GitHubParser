@@ -1,6 +1,7 @@
 from pygments import lex
 from pygments.lexers.html import XmlLexer
-from features.xml_features import XmlFeatures
+
+from analyzer.xml.xml_features import XmlFeatures
 
 
 class XmlParser:

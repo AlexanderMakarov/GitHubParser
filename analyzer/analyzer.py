@@ -1,10 +1,10 @@
 import multiprocessing.pool
-from model.raw_comment import RawComment
-from model.pull_request import PullRequest
-from logging import Logger
-from analyzer.git_analyze import parse_git_diff
-from multiprocessing import Process
 from datetime import datetime
+from logging import Logger
+
+from analyzer.git.git_analyze import parse_git_diff
+from model.pull_request import PullRequest
+from model.raw_comment import RawComment
 
 
 def analyze_raw_comment(rc: RawComment):

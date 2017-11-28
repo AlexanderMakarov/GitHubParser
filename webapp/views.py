@@ -1,23 +1,21 @@
-from flask import render_template, request, url_for
-from flask_appbuilder.models.sqla.interface import SQLAInterface
-from flask_appbuilder import AppBuilder, ModelView, expose, BaseView, has_access, action
-from webapp import appbuilder, app, db
 from datetime import datetime
-from github_parser.parser import get_pull_requests_from_github, fetch_pr_from_github
-from analyzer.analyzer import analyze_items
-from model.raw_comment import RawComment
-from model.pull_request import PullRequest
-# from model.rcclass import RCClass
-from model.comment import Comment
-import os
-import random
 from logging import Handler
 from threading import Thread
-from analyzer.ml_dnn import train_net, parse_and_dump_features, NetType, predict
+
+from flask import render_template, request, url_for
+from flask_appbuilder import ModelView, expose, BaseView, has_access
+from flask_appbuilder.models.sqla.interface import SQLAInterface
+
 from analyzer.analyzer import parse_git_diff
+from analyzer.ml_dnn import train_net, parse_and_dump_features, NetType, predict
+from analyzer.swift.swift_parser import SwiftParser
+from github_parser.parser import get_pull_requests_from_github, fetch_pr_from_github
+# from model.rcclass import RCClass
+from model.comment import Comment
 from model.git_data import GitLineType
-from parsers.swift_parser import SwiftParser
-from parsers.xml_parser import XmlParser
+from model.pull_request import PullRequest
+from model.raw_comment import RawComment
+from webapp import appbuilder, app, db
 
 
 class HomeView(BaseView):

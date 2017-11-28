@@ -1,23 +1,23 @@
 from __future__ import print_function
-import tensorflow as tf
-import numpy as np
-import os
-from model.git_data import *
-from model.raw_comment import RawComment
-from model.pull_request import PullRequest
-from analyzer.raw_comments_classifier import classify_raw_comments, RCClass, classify_and_dump_raw_comments
-from analyzer.csv_worker import dump_features, dump_train, dump_test, get_test_csv_path, get_train_csv_path
-from logging import Logger, Handler
-from analyzer.git_analyze import parse_git_diff
-from datetime import datetime
-import random
-from parsers.xml_parser import XmlParser
-from features.xml_features import XmlFeatures
-from parsers.swift_parser import SwiftParser
-from features.swift_features import SwiftFeatures
-from enum import Enum
-from analyzer.csv_worker import get_two_lines_of_test_file
 
+import random
+from datetime import datetime
+from logging import Logger, Handler
+
+import numpy as np
+import tensorflow as tf
+
+from analyzer.csv_worker import dump_train, dump_test, get_test_csv_path, get_train_csv_path
+from analyzer.csv_worker import get_two_lines_of_test_file
+from analyzer.git.git_analyze import parse_git_diff
+from analyzer.raw_comments_classifier import classify_and_dump_raw_comments
+from analyzer.swift.swift_features import SwiftFeatures
+from analyzer.swift.swift_parser import SwiftParser
+from analyzer.xml.xml_features import XmlFeatures
+from analyzer.xml.xml_parser import XmlParser
+from model.git_data import *
+from model.pull_request import PullRequest
+from model.raw_comment import RawComment
 
 my_path = os.path.realpath(__file__)
 instance_path = os.path.join(my_path, "..", "..", "instance")
