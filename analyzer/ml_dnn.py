@@ -9,7 +9,7 @@ import tensorflow as tf
 
 from analyzer.csv_worker import dump_train, dump_test, get_test_csv_path, get_train_csv_path
 from analyzer.csv_worker import get_two_lines_of_test_file
-from analyzer.git.git_analyze import parse_git_diff
+from analyzer.git_diff_parser import parse_git_diff
 from analyzer.raw_comments_classifier import classify_and_dump_raw_comments
 from analyzer.swift.swift_features import SwiftFeatures
 from analyzer.swift.swift_parser import SwiftParser

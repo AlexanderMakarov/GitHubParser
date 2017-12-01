@@ -1,5 +1,6 @@
 import csv
 import os
+import numpy as np
 
 
 my_path = os.path.realpath(__file__)
@@ -34,7 +35,7 @@ def dump_features(names: [], rows: []):
     return file_path
 
 
-def normalise_row_values(row):
+def normalise_row_values(row):  # TODO disable - analyzer should use right values at start.
     data = []
     for value in row:
         if value is False:
@@ -76,7 +77,7 @@ def dump_test(net_name: str, feature_names: [], rows: []):
     return file_path
 
 
-def dump_rcclasses(rcclasses: []):
+def dump_rcclasses(rcclasses: []):  # TODO remove if is really outdated.
     _prepare_folder()
     file_path = os.path.join(CSV_FOLDER, "rclasses.csv")
     with open(file_path, 'w', encoding='utf-8', newline='') as csv_file:
@@ -93,3 +94,22 @@ def get_two_lines_of_test_file(net_name: str):
         reader = csv.reader(csv_file)
         values = list(reader)
         return values[0], values[1]
+
+
+class FileAppender:  # Don't use csv_writer at all because it writes by line, it is slow.
+    def __init__(self, source_type: str, file_path: str):
+        self.source_type = source_type
+        self.file_path = file_path
+        self.csv_file = None
+
+    def open_file(self):
+        self.csv_file = open(self.file_path, 'w', encoding='utf-8', newline='')
+
+    def write_lines(self, lines: []):
+        for line in lines:
+            row = ",".join(line)
+            self.csv_file.write(row + "\n")
+        self.csv_file.flush()
+
+    def close(self):
+        self.csv_file.close()

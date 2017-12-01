@@ -9,15 +9,20 @@ class GitLineType(Enum):
 
 
 class GitLine:
+    type: GitLineType
+    line: str
+
     def __init__(self, line: str):
-        self.line = line
         first_char = line[0:1]
         if first_char == "+":
             self.type = GitLineType.ADD
+            self.line = line[1:]
         elif first_char == "-":
             self.type = GitLineType.REMOVE
+            self.line = line[1:]
         else:
             self.type = GitLineType.UNCHANGED
+            self.line = line
 
 
 def parse_file_type(file_path: str):
