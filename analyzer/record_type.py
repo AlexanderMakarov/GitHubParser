@@ -1,5 +1,5 @@
 from enum import Enum
-from model.git_data import FileType
+from analyzer.git_dao import FileType
 
 
 class RecordType(Enum):

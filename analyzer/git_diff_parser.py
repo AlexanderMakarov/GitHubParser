@@ -1,5 +1,5 @@
 import re
-from model.git_data import GitFile, GitLine, GitPiece
+from analyzer.git_dao import *
 
 
 DIFF_DIFF_RE = re.compile("diff --git a/(.+?)( b/)(.*)")

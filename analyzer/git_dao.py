@@ -11,6 +11,7 @@ class GitLineType(Enum):
 class GitLine:
     type: GitLineType
     line: str
+    features: None
 
     def __init__(self, line: str):
         first_char = line[0:1]

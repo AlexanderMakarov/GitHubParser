@@ -1,5 +1,4 @@
 github3.py
-flask
 flask-appbuilder
 pygments
 # Possible need to execute 'pip3 install --upgrade tensorflow' on Windows.

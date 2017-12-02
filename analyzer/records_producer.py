@@ -1,9 +1,14 @@
 from analyzer.features_keeper import FeaturesKeeper
 import numpy as np
-from model.git_data import *
+from analyzer.git_dao import *
 
 
-class RecordParser:
+class RecordsProducer:
+    """
+    Parses records from specified Git objects. Associated with single 'FeaturesKeeper'.
+    Note: Numpy arrays ('ndarray') are faster and takes less RAM.
+    """
+
     features_keeper: FeaturesKeeper
 
     def __init__(self, features_keeper: FeaturesKeeper):
@@ -13,12 +18,12 @@ class RecordParser:
     def check_binary_line(line: str):
         return "\x00" in line or any(ord(x) > 0x80 for x in line)
 
-    def analyze_git_file_recursively(self, file: GitFile, is_diff_hunk=False):
+    def analyze_git_file_recursively(self, file: GitFile, is_diff_hunk=False) -> np.ndarray:
         """
         Analyzes specified 'GitFile'.
         :param file: 'GitFile' to analyze.
         :param is_diff_hunk: Flag that we are interested only in last line in first piece in file.
-        :return: 2D numpy with parsed records (one per line).
+        :return: 2D numpy array with parsed records ([row][features]).
         """
         records = []
         file_level_features = self.analyze_git_file(file)
@@ -39,14 +44,16 @@ class RecordParser:
                 records.append(line_level_features)  # Save features.
         return np.array(records)
 
-    def analyze_git_file(self, file: GitFile):
+    # To override.
+    def analyze_git_file(self, file: GitFile) -> np.ndarray:
         return self.features_keeper.get_row_container()
 
-    def analyze_git_piece(self, file_level_features, piece: GitPiece):
+    # To override.
+    def analyze_git_piece(self, file_level_features, piece: GitPiece) -> np.ndarray:
         return np.copy(file_level_features)
 
     # To override.
-    def analyze_git_line(self, piece_level_features, line: GitLine):
+    def analyze_git_line(self, piece_level_features, line: GitLine) -> np.ndarray:
         """
         Analyzes specified 'GitLine'.
         :param piece_level_features: Numpy 1D array of already analyzed features.
