@@ -99,7 +99,7 @@ def get_two_lines_of_test_file(net_name: str):
 
 
 def get_record_file_path(record_type: RecordType):
-    return os.path.join(CSV_FOLDER, "records_%s.csv" % (record_type.name))
+    return os.path.normpath(os.path.join(CSV_FOLDER, "records_%s.csv" % (record_type.name)))
 
 
 class FileAppender:  # Don't use csv_writer at all because it writes by line, it is slow.
@@ -132,6 +132,7 @@ class FileAppender:  # Don't use csv_writer at all because it writes by line, it
         self.close()
         with open(self.file_path, 'r+') as file:
             data = file.read()  # Assume we can afford keep whole file content in memory.
+            file.seek(0)
             file.write(head_row + "\n")
             file.write(data)
 

@@ -37,6 +37,6 @@ class GitRecordsProducer(RecordsProducer):
             features[GitFeatures.GIT_LINE_TYPE.value] = 0
         else:
             features[GitFeatures.GIT_LINE_TYPE.value] = -1
-            features[GitFeatures.GIT_LINE_LENGTH.value] = len(line.line)
+        features[GitFeatures.GIT_LINE_LENGTH.value] = len(line.line)
         # TODO add more features.
         return features
