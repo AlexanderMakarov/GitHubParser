@@ -9,8 +9,9 @@ from analyzer.record_type import RecordType
 from analyzer.features_keeper import Features
 from model.pull_request import PullRequest
 from model.raw_comment import RawComment
-from analyzer.csv_worker import FileAppender
+from analyzer.csv_worker import FileAppender, dump_records
 from analyzer.git_dao import GitFile
+import sys
 
 
 class RecordTypeHandler:
@@ -48,9 +49,14 @@ class RecordTypeHandler:
             self.file_appender.write_records(self.records)
             self.clean_records()
 
-    def finalize_records_file(self):
-        self.file_appender.write_head(self.producer.features_keeper.get_feature_names())
-        self.producer.features_keeper.dump_vocabulary_features()
+    def finalize_records_file(self, logger: Logger):
+        logger.info("  %d bytes for %d records list with %d features each", sys.getsizeof(self.records),
+                    len(self.records), len(self.records[0]))  # TODO correct
+        # self.flush_records(logger)
+        # self.file_appender.write_head(self.producer.features_keeper.get_feature_names())
+        dump_records(self.record_type, self.producer.features_keeper.get_feature_names(), self.records)
+        self.clean_records()
+        self.producer.features_keeper.dump_vocabulary_features(logger)
 
 
 class Analyzer:
@@ -79,9 +85,9 @@ class Analyzer:
         for handler in self.type_to_handler_dict.values():
             handler.flush_records()
 
-    def finalize(self):
+    def finalize(self, logger: Logger):
         for handler in self.type_to_handler_dict.values():
-            handler.finalize_records_file()
+            handler.finalize_records_file(logger)
 
     @staticmethod
     def chunks_generator(items: [], chunk_size: int):
@@ -96,7 +102,6 @@ class Analyzer:
         :param threads_number: Number of threads to parallel analyzing on.
         :return: Count of analyzed records (of all types).
         """
-        self.clean_handlers()  # Remove old data.
         items_count = len(items)
         # Determine type of item.
         is_prs = False
@@ -142,8 +147,8 @@ class Analyzer:
                 last_log_time = time2
                 logger.info("%d/%d analyzed in %s. Remains about %s.", completed, items_count, time2 - time1, estimate)
         time2 = datetime.today()
-        self.flush_handlers()
-        logger.info("Total %d records obtained in %s.", total_count, time2 - time1)
+        logger.info("Total %d records get after %d %ss analyzing. Take %s.", total_count, items_count, item_name,
+                    time2 - time1)
         return total_count
 
 

@@ -108,7 +108,6 @@ def get_record_file_path(record_type: RecordType):
 
 
 class FileAppender:  # Don't use csv_writer because it appends to file by line (slow) and cannot preappend header row.
-    # TODO think about np.savetxt (analyze memory usage).
     def __init__(self, record_type: RecordType):
         self.record_type = record_type
         self.file_path = get_record_file_path(record_type)
@@ -146,6 +145,19 @@ class FileAppender:  # Don't use csv_writer because it appends to file by line (
         if self.csv_file:
             self.csv_file.close()
             self.csv_file = None
+
+
+# TODO complete np.savetxt (analyze memory usage).
+def dump_records(record_type: RecordType, feature_names: list, records: list):
+    file_path = get_record_file_path(record_type)
+    names = [str(len(records)), str(len(feature_names))] + feature_names  # Make here to clean 'records' from memory.
+    np_array = np.asarray(records)
+    np.savetxt(file_path, np_array, fmt="%d", delimiter=",")
+    with open(file_path, 'r+') as file:
+        data = file.read()  # Assume we can afford keep whole file content in memory.
+        file.seek(0)
+        file.write(",".join(names) + "\n")
+        file.write(data)
 
 
 def dump_vocabulary(feature_name: str, vocabulary: dict):

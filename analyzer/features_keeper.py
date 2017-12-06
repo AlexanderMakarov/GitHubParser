@@ -4,6 +4,7 @@ from analyzer.record_type import RecordType
 from typing import Type
 from itertools import count
 from analyzer.csv_worker import dump_vocabulary
+from logging import Logger
 
 
 # To speed up features obtaining better to keep them in numpy arrays.
@@ -76,8 +77,10 @@ class FeaturesKeeper:
                 feature_vocabulary[vocabulary_item] = index
             record[feature.value] = index
 
-    def dump_vocabulary_features(self):
+    def dump_vocabulary_features(self, logger: Logger):
         features_names = np.array([x.name for x in self.features], dtype=object)
         for feature_index, feature_vocabulary in enumerate(self.vocabulary_features):
             if feature_vocabulary is not None:
-                dump_vocabulary(features_names[feature_index], feature_vocabulary)
+                feature_name = features_names[feature_index]
+                logger.info("  dump %s feature vocabulary with %d items", feature_name, len(feature_vocabulary))
+                dump_vocabulary(feature_name, feature_vocabulary)
