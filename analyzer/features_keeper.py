@@ -3,6 +3,7 @@ import numpy as np
 from analyzer.record_type import RecordType
 from typing import Type
 from itertools import count
+from analyzer.csv_worker import dump_vocabulary
 
 
 # To speed up features obtaining better to keep them in numpy arrays.
@@ -30,14 +31,21 @@ class Features(Enum):
 class FeaturesKeeper:
     """
     Class to handle features list. Should be associated with single 'Features' class.
+    Provides ability to keep features for one record in Numpy array of pre-known size, build template for such record
+    and set values into record array with `record[FooFeatures.BAR.value] = some` syntax.
+    I.e. defining one feature takes constant time and doesn't depend from count of features.
+    Also it handles list-based features. See `add_vocabulary_feature_value` method.
     """
 
     record_type: RecordType
     features: Type[Features]
+    vocabulary_features: np.ndarray
 
     def __init__(self, record_type: RecordType, features: Type[Features]):
         self.record_type = record_type
         self.features = features
+        self.vocabulary_features = np.empty(len(self.features), dtype=object)
+        self.vocabulary_features.fill(None)
 
     def get_features_names(self):
         features = []
@@ -53,3 +61,23 @@ class FeaturesKeeper:
         :return: Numpy array for one record with 0 values for all features.
         """
         return np.zeros(len(self.features), dtype=int)
+
+    def add_vocabulary_feature_value(self, feature, vocabulary_item, record: np.ndarray):
+        feature_vocabulary: dict = self.vocabulary_features[feature.value]
+        if feature_vocabulary is None:
+            feature_vocabulary = dict()
+            feature_vocabulary[vocabulary_item] = 0  # Index is 0 because dictionary has only one key.
+            self.vocabulary_features[feature.value] = feature_vocabulary
+            record[feature.value] = 0  # It is index in feature_vocabulary.
+        else:
+            index = feature_vocabulary.get(vocabulary_item)
+            if index is None :
+                index = len(feature_vocabulary)  # Dictionary is appended only so calculate unique index from length.
+                feature_vocabulary[vocabulary_item] = index
+            record[feature.value] = index
+
+    def dump_vocabulary_features(self):
+        features_names = np.array([x.name for x in self.features], dtype=object)
+        for feature_index, feature_vocabulary in enumerate(self.vocabulary_features):
+            if feature_vocabulary is not None:
+                dump_vocabulary(features_names[feature_index], feature_vocabulary)

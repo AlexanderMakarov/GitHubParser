@@ -1,5 +1,5 @@
 import multiprocessing.pool
-from datetime import datetime
+from datetime import datetime, timedelta
 from logging import Logger
 from functools import partial
 
@@ -10,7 +10,6 @@ from analyzer.features_keeper import Features
 from model.pull_request import PullRequest
 from model.raw_comment import RawComment
 from analyzer.csv_worker import FileAppender
-from analyzer.git.git_producer import GitRecordsProducer
 from analyzer.git_dao import GitFile
 
 
@@ -51,9 +50,17 @@ class RecordTypeHandler:
 
     def finalize_records_file(self):
         self.file_appender.write_head(self.producer.features_keeper.get_feature_names())
+        self.producer.features_keeper.dump_vocabulary_features()
 
 
 class Analyzer:
+    """
+    Class to parse/analyze features from RawComment-s and PullRequest-s.
+    Should be used in next way:
+    1. Call 'analyze' method as many time as need. It will fill up 'records_XXX.csv' files by chunks.
+    2. When analyzing is over call 'finalize' method. It will preappend 'records_XXX.csv' files with header rows
+        and dump all "vocabulary features" into 'YYY_vocabulary.csv' files.
+    """
     type_to_handler_dict: dict
 
     def __init__(self, *args):
@@ -72,7 +79,7 @@ class Analyzer:
         for handler in self.type_to_handler_dict.values():
             handler.flush_records()
 
-    def close_handlers(self):
+    def finalize(self):
         for handler in self.type_to_handler_dict.values():
             handler.finalize_records_file()
 
@@ -112,25 +119,28 @@ class Analyzer:
         if not is_prs and chunk_size > 2000:
             chunk_size_divider = chunk_size / 20
         chunk_size = int(chunk_size / chunk_size_divider)
-        estimate = items_count / threads_number * 0.005  # TODO: magic number - correct together with algorithm.
-        logger.info("Start %d threads to analyze %d %ss using %d pts chunks. Wait about %.2f seconds", threads_number,
-                    items_count, item_name, chunk_size, estimate)
+        logger.info("Start %d threads to analyze %d %ss using %d pts chunks.", threads_number,
+                    items_count, item_name, chunk_size)
         # Split items on chunks.
         chunks = self.chunks_generator(items, chunk_size)
         # Create threads poll and start analyzing.
         pool = multiprocessing.pool.ThreadPool(processes=threads_number)
-        time1 = datetime.today()
         total_count: int = 0
         # Collect results.
         func = partial(target_func, logger, self.type_to_handler_dict)
+        time1 = datetime.today()
         last_log_time = time1
+        completed = 0
         for i, result_item in enumerate(pool.imap_unordered(func, chunks)):
             total_count += result_item
-            completed = i + 1
+            completed += chunk_size
             time2 = datetime.today()
             if (time2 - last_log_time).total_seconds() >= 1:  # Log at least every second.
+                total_seconds = (time2 - time1).total_seconds()
+                estimate = (items_count - completed) * total_seconds / float(completed)
+                estimate = timedelta(seconds=estimate)
                 last_log_time = time2
-                logger.info("%d/%d analyzed in %s", completed, items_count, time2 - time1)
+                logger.info("%d/%d analyzed in %s. Remains about %s.", completed, items_count, time2 - time1, estimate)
         time2 = datetime.today()
         self.flush_handlers()
         logger.info("Total %d records obtained in %s.", total_count, time2 - time1)
@@ -159,7 +169,6 @@ def analyze_raw_comments(logger: Logger, type_to_handler_dict: dict, rcs: []) ->
         handler = type_to_handler_dict.get(git_file.file_type)
         if handler:
             handler: RecordTypeHandler
-            records_len = handler.analyze(git_file, True)
             handler_records_len = len(handler.records)
             if handler_records_len != 1:
                 logger.warning("%s analyzer returns %d records for %d raw comment.", git_file.file_type.name,

@@ -41,15 +41,15 @@ if __name__ == '__main__':
     # TODO analyzer = Analyzer(GitRecordsProducer(), XmlRecordsProducer(), SwiftRecordsProducer())
     # Start analyze.
     time2 = datetime.today()
-    logger.info("Load %d raw comments and %d pull requests in %s seconds.", len(raw_comments), len(prs),
+    logger.info("Load %d raw comments and %d pull requests in %s.", len(raw_comments), len(prs),
                 time2 - time1)
     # Analyze and write to CSV files.
     records_count = analyzer.analyze_items(logger, raw_comments, multiprocessing.cpu_count())
     time3 = datetime.today()
-    logger.info("Analyzed %d records from %d raw comments in %s seconds.", records_count, len(raw_comments),
+    logger.info("Analyzed %d records from %d raw comments in %s.", records_count, len(raw_comments),
                 time3 - time2)
     records_count = analyzer.analyze_items(logger, prs, multiprocessing.cpu_count())
-    analyzer.close_handlers()
+    analyzer.finalize()
     time4 = datetime.today()
-    logger.info("Analyzed %d records from %d pull requests in %s seconds.", records_count, len(prs),
+    logger.info("Analyzed %d records from %d pull requests in %s.", records_count, len(prs),
                 time4 - time3)

@@ -6,9 +6,10 @@ import fileinput
 
 
 my_path = os.path.realpath(__file__)
-CSV_FOLDER = os.path.join(my_path, "..", "..", "instance", "csv")
+CSV_FOLDER = os.path.normpath(os.path.join(my_path, "..", "..", "instance", "csv"))
 TRAIN_CSV_NAME = "train.csv"
 TEST_CSV_NAME = "test.csv"
+VOCABULARY_CSV_NAME = "vocabulary.csv"
 
 
 def _prepare_folder():
@@ -22,6 +23,10 @@ def get_train_csv_path(net_name: str):
 
 def get_test_csv_path(net_name: str):
     return os.path.join(CSV_FOLDER, "%s_%s" % (net_name, TEST_CSV_NAME))
+
+
+def get_vocabulary_csv_path(feature_name: str):
+    return os.path.join(CSV_FOLDER, "%s_%s" % (feature_name, VOCABULARY_CSV_NAME))
 
 
 def dump_features(names: [], rows: []):
@@ -99,10 +104,11 @@ def get_two_lines_of_test_file(net_name: str):
 
 
 def get_record_file_path(record_type: RecordType):
-    return os.path.normpath(os.path.join(CSV_FOLDER, "records_%s.csv" % (record_type.name)))
+    return os.path.join(CSV_FOLDER, "records_%s.csv" % (record_type.name))
 
 
-class FileAppender:  # Don't use csv_writer at all because it writes by line, it is slow.
+class FileAppender:  # Don't use csv_writer because it appends to file by line (slow) and cannot preappend header row.
+    # TODO think about np.savetxt (analyze memory usage).
     def __init__(self, record_type: RecordType):
         self.record_type = record_type
         self.file_path = get_record_file_path(record_type)
@@ -140,3 +146,11 @@ class FileAppender:  # Don't use csv_writer at all because it writes by line, it
         if self.csv_file:
             self.csv_file.close()
             self.csv_file = None
+
+
+def dump_vocabulary(feature_name: str, vocabulary: dict):
+    _prepare_folder()
+    file_path = get_vocabulary_csv_path(feature_name)
+    data = "\n".join(k for k in sorted(vocabulary, key=vocabulary.get))
+    with open(file_path, 'w', encoding='utf-8', newline='') as file:
+        file.write(data)
