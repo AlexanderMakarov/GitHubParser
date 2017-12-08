@@ -37,7 +37,7 @@ class RecordTypeHandler:
         records = self.producer.analyze_git_file_recursively(git_file, is_diff_hunk)
         if rc_id > 0:
             for record in records:
-                record[Features.RC_ID.value] = rc_id
+                record[self.producer.features_keeper.features.RC_ID] = rc_id
         self.records.extend(records)  # Support case when 'analyze' called few times before 'clean_records' call.
         return len(records)
 

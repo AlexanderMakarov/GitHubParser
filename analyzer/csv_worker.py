@@ -147,16 +147,16 @@ class FileAppender:  # Don't use csv_writer because it appends to file by line (
             self.csv_file = None
 
 
-# TODO complete np.savetxt (analyze memory usage).
 def dump_records(record_type: RecordType, feature_names: list, records: list):
     file_path = get_record_file_path(record_type)
-    names = [str(len(records)), str(len(feature_names))] + feature_names  # Make here to clean 'records' from memory.
+    # Make head row here to clean 'records' from memory ASAP.
+    head_row_values = [str(len(records)), str(len(feature_names))] + list(feature_names)
     np_array = np.asarray(records)
     np.savetxt(file_path, np_array, fmt="%d", delimiter=",")
     with open(file_path, 'r+') as file:
         data = file.read()  # Assume we can afford keep whole file content in memory.
         file.seek(0)
-        file.write(",".join(names) + "\n")
+        file.write(",".join(head_row_values) + "\n")
         file.write(data)
 
 

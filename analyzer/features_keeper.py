@@ -1,8 +1,5 @@
-from enum import Enum, auto
 import numpy as np
 from analyzer.record_type import RecordType
-from typing import Type
-from itertools import count
 from analyzer.csv_worker import dump_vocabulary
 from logging import Logger
 
@@ -12,21 +9,14 @@ from logging import Logger
 # 'FeaturesKeeper' is a base class for types.
 
 
-class Features(Enum):
-    """
-    Enum of supported features. Fields are implemented to be used as indexes in records arrays.
-    Can be extended with code like (on GIT parser example):
-    `GitFeatures = Features.build_extension('GitFeatures', 'GIT_LINE_TYPE', 'GIT_PIECES_NUMBER', 'GIT_LINE_LENGTH')`
-    class GitFeaturesKeeper(FeaturesKeeper):
-        def __init__(self):
-            super().__init__(RecordType.GIT, GitFeatures)`
-    """
-    RC_ID = 0
+class Features(object):
+    __slots__ = ['RC_ID']
 
-    @staticmethod
-    def build_extension(extension_name: str, new_names: []):
-        fields = [m.name for m in Features] + new_names
-        return Enum(extension_name, zip(fields, count()))
+    def __init__(self):
+        counter = 0
+        for slot in self.__slots__:
+            setattr(self, slot, counter)
+            counter += 1
 
 
 class FeaturesKeeper:
@@ -39,48 +29,42 @@ class FeaturesKeeper:
     """
 
     record_type: RecordType
-    features: Type[Features]
+    features: Features
     vocabulary_features: np.ndarray
 
-    def __init__(self, record_type: RecordType, features: Type[Features]):
+    def __init__(self, record_type: RecordType, features: Features):
         self.record_type = record_type
         self.features = features
-        self.vocabulary_features = np.empty(len(self.features), dtype=object)
+        self.features_number = len(self.features.__slots__)
+        self.vocabulary_features = np.empty(self.features_number, dtype=object)
         self.vocabulary_features.fill(None)
 
-    def get_features_names(self):
-        features = []
-        for feature in self.features:
-            features.append(feature.name)
-        return features
-
-    def get_feature_names(self):
-        return [m.name for m in self.features]
+    def get_feature_names(self) -> list:
+        return [k for k in self.features.__slots__]
 
     def get_row_container(self):
         """
         :return: Numpy array for one record with 0 values for all features.
         """
-        return np.zeros(len(self.features), dtype=int)
+        return np.zeros(self.features_number, dtype=np.int16)
 
-    def add_vocabulary_feature_value(self, feature, vocabulary_item, record: np.ndarray):
-        feature_vocabulary: dict = self.vocabulary_features[feature.value]
+    def add_vocabulary_feature_value(self, feature: int, vocabulary_item: str, record: np.ndarray):
+        feature_vocabulary: dict = self.vocabulary_features[feature]
         if feature_vocabulary is None:
             feature_vocabulary = dict()
             feature_vocabulary[vocabulary_item] = 0  # Index is 0 because dictionary has only one key.
-            self.vocabulary_features[feature.value] = feature_vocabulary
-            record[feature.value] = 0  # It is index in feature_vocabulary.
+            self.vocabulary_features[feature] = feature_vocabulary
+            record[feature] = 0  # It is index in feature_vocabulary.
         else:
-            index = feature_vocabulary.get(vocabulary_item)
-            if index is None :
-                index = len(feature_vocabulary)  # Dictionary is appended only so calculate unique index from length.
-                feature_vocabulary[vocabulary_item] = index
-            record[feature.value] = index
+            item_index = feature_vocabulary.get(vocabulary_item)
+            if item_index is None:  # No such item in vocabulary.
+                item_index = len(feature_vocabulary)  # Dictionary is appended only so calculate unique index from length.
+                feature_vocabulary[vocabulary_item] = item_index
+            record[feature] = item_index
 
     def dump_vocabulary_features(self, logger: Logger):
-        features_names = np.array([x.name for x in self.features], dtype=object)
         for feature_index, feature_vocabulary in enumerate(self.vocabulary_features):
             if feature_vocabulary is not None:
-                feature_name = features_names[feature_index]
+                feature_name = self.features.__slots__[feature_index]
                 logger.info("  dump %s feature vocabulary with %d items", feature_name, len(feature_vocabulary))
                 dump_vocabulary(feature_name, feature_vocabulary)

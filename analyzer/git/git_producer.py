@@ -5,13 +5,13 @@ import numpy as np
 from analyzer.features_keeper import Features, FeaturesKeeper
 
 
-GitFeatures = Features.build_extension('GitFeatures',
-                                       ['GIT_LINE_TYPE', 'GIT_PIECES_NUMBER', 'GIT_LINE_LENGTH', 'GIT_FILE'])
+class GitFeatures(Features):
+    __slots__ = Features.__slots__ + ['GIT_LINE_TYPE', 'GIT_PIECES_NUMBER', 'GIT_LINE_LENGTH', 'GIT_FILE']
 
 
 class GitFeaturesKeeper(FeaturesKeeper):
     def __init__(self):
-        super().__init__(RecordType.GIT, GitFeatures)
+        super().__init__(RecordType.GIT, GitFeatures())
 
 
 class GitRecordsProducer(RecordsProducer):
@@ -21,8 +21,8 @@ class GitRecordsProducer(RecordsProducer):
 
     def analyze_git_file(self, file: GitFile) -> np.ndarray:
         record = self.features_keeper.get_row_container()
-        record[GitFeatures.GIT_PIECES_NUMBER.value] = len(file.pieces)
-        self.features_keeper.add_vocabulary_feature_value(GitFeatures.GIT_FILE, file.file_path, record)
+        record[self.features_keeper.features.GIT_PIECES_NUMBER] = len(file.pieces)
+        self.features_keeper.add_vocabulary_feature_value(self.features_keeper.features.GIT_FILE, file.file_path, record)
         #record["git_is_%s" % file.file_type] = True  # TODO complete with lists of values
         #record["git_is_file_%s" % file.file_path] = True
         return record
@@ -34,11 +34,11 @@ class GitRecordsProducer(RecordsProducer):
     def analyze_git_line(self, piece_level_features, line: GitLine) -> np.ndarray:
         record = np.copy(piece_level_features)
         if line.type is GitLineType.ADD:
-            record[GitFeatures.GIT_LINE_TYPE.value] = 1
+            record[self.features_keeper.features.GIT_LINE_TYPE] = 1
         elif line.type is GitLineType.UNCHANGED:
-            record[GitFeatures.GIT_LINE_TYPE.value] = 0
+            record[self.features_keeper.features.GIT_LINE_TYPE] = 0
         else:
-            record[GitFeatures.GIT_LINE_TYPE.value] = -1
-        record[GitFeatures.GIT_LINE_LENGTH.value] = len(line.line)
+            record[self.features_keeper.features.GIT_LINE_TYPE] = -1
+        record[self.features_keeper.features.GIT_LINE_LENGTH] = len(line.line)
         # TODO add more features.
         return record
