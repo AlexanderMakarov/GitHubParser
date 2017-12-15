@@ -4,61 +4,12 @@ from logging import Logger
 from functools import partial
 
 from analyzer.git_diff_parser import parse_git_diff
-from analyzer.records_producer import RecordsProducer
+from analyzer.record_handler import RecordHandler
 from analyzer.record_type import RecordType
-from analyzer.features_keeper import Features
 from model.pull_request import PullRequest
 from model.raw_comment import RawComment
 from analyzer.csv_worker import FileDumper, ChunksFileDumper
 from analyzer.git_dao import GitFile
-
-
-class RecordHandler(object):
-    """
-    Keep records during analyzing and dump records to file(s). Works with records only one type.
-    For one session of analyzing need to create and use few handlers - one per each record type.
-    """
-    __slots__ = ['record_type', 'producer', 'file_dumper', '_records', 'flushed_records_number', 'queue']
-
-    def __init__(self, producer: RecordsProducer, file_dumper: FileDumper):
-        self.record_type = producer.features_keeper.record_type
-        self.producer = producer
-        self.file_dumper = file_dumper
-        self._records = []
-        self.flushed_records_number = 0
-
-    def analyze(self, git_file: GitFile, is_diff_hunk, rc_id: int = -1) -> int:
-        """
-        Analyzes specified 'GitFile' and saves resulting records into inner 'records'.
-        :param git_file: 'GitFile' to analyze.
-        :param is_diff_hunk: Flag that 'GitFile' contains "diff_hunk" instead of usual diff.
-        :param rc_id: RawComment ID if exist.
-        :return: Count of records produced from specified git file.
-        """
-        records = self.producer.analyze_git_file_recursively(git_file, is_diff_hunk)
-        if rc_id > 0:
-            for record in records:
-                record[self.producer.features_keeper.features.RC_ID] = rc_id
-        self._records.extend(records)  # Support case when 'analyze' called few times before 'clean_records' call.
-        return len(records)
-
-    def clean_records(self):
-        self._records = []
-
-    def flush_records(self) -> int:
-        records_len = len(self._records)
-        if records_len >= 0:
-            self.file_dumper.flush_records(self._records)
-            # logger.info("  dump %d bytes for %d records list with %d features each", sys.getsizeof(self._records),
-            #             len(self._records), len(self._records[0]))
-            self.clean_records()
-            self.flushed_records_number += records_len
-        return records_len
-
-    def finalize_records_file(self, logger: Logger):
-        self.flush_records()
-        self.file_dumper.write_head(self.flushed_records_number, self.producer.features_keeper.get_feature_names())
-        self.producer.features_keeper.dump_vocabulary_features(logger)
 
 
 class Analyzer:
@@ -77,7 +28,7 @@ class Analyzer:
         self.type_to_handler_dict = dict()
         self.is_dump_by_chunks = is_dump_by_chunks
         for producer in args:
-            record_type = producer.features_keeper.record_type
+            record_type = producer.record_type
             if is_dump_by_chunks:
                 file_dumper = ChunksFileDumper(record_type)
             else:
@@ -91,9 +42,9 @@ class Analyzer:
         for handler in self.type_to_handler_dict.values():
             handler.clean_records()
 
-    def flush_handlers(self):
+    def flush_handlers(self, logger: Logger):
         for handler in self.type_to_handler_dict.values():
-            handler.flush_records()
+            handler.flush_records(logger)
 
     def finalize(self, logger: Logger):
         for handler in self.type_to_handler_dict.values():
@@ -199,7 +150,7 @@ def analyze_raw_comments(analyzer: Analyzer, rcs: []) -> int:
                 continue
         records_number += 1
     if analyzer.is_dump_by_chunks:
-        analyzer.flush_handlers()
+        analyzer.flush_handlers(analyzer.logger)
     return records_number
 
 
@@ -230,5 +181,5 @@ def analyze_pull_requests(analyzer: Analyzer, prs: []) -> int:
                 handler_records_len = handler.analyze(git_file, False)
             records_number += records_len + handler_records_len
     if analyzer.is_dump_by_chunks:
-        analyzer.flush_handlers()
+        analyzer.flush_handlers(analyzer.logger)
     return records_number
