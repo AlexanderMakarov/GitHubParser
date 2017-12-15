@@ -37,18 +37,18 @@ if __name__ == '__main__':
     # Use only closed PRs.
     prs = session.query(PullRequest).filter(PullRequest.state == "closed").limit(args.prs).all()
     # Build analyzer.
-    analyzer = Analyzer(GitRecordsProducer())
+    analyzer = Analyzer(logger, GitRecordsProducer())
     # TODO analyzer = Analyzer(GitRecordsProducer(), XmlRecordsProducer(), SwiftRecordsProducer())
     # Start analyze.
     time2 = datetime.today()
     logger.info("Load %d raw comments and %d pull requests in %s.", len(raw_comments), len(prs),
                 time2 - time1)
     # Analyze and write to CSV files.
-    rc_records_count = analyzer.analyze_items(logger, raw_comments, multiprocessing.cpu_count())
+    rc_records_count = analyzer.analyze_items(raw_comments, multiprocessing.cpu_count())
     time3 = datetime.today()
     logger.info("Got %d records due %d raw comments analyzing in %s.", rc_records_count, len(raw_comments),
                 time3 - time2)
-    pr_records_count = analyzer.analyze_items(logger, prs, multiprocessing.cpu_count())
+    pr_records_count = analyzer.analyze_items(prs, multiprocessing.cpu_count())
     time4 = datetime.today()
     logger.info("Got %d records due %d pull requests analyzing in %s.", pr_records_count, len(prs),
                 time4 - time3)
