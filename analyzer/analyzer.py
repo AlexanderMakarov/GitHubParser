@@ -14,16 +14,17 @@ from analyzer.git_dao import GitFile
 import sys
 
 
-class RecordTypeHandler:
-    record_type: RecordType
-    producer: RecordsProducer
-    records: list
+class RecordHandler(object):
+    """
+    Keep records during analyzing and dump records to file(s). Works with records only one type.
+    """
+    __slots__ = ['record_type', 'producer', 'file_appender', 'records']
 
     def __init__(self, producer: RecordsProducer):
         self.record_type = producer.features_keeper.record_type
         self.producer = producer
         self.file_appender = FileAppender(self.record_type)
-        self.clean_records()
+        self.records = []
 
     def analyze(self, git_file: GitFile, is_diff_hunk, rc_id: int = -1):
         """
@@ -72,7 +73,7 @@ class Analyzer:
     def __init__(self, *args):
         self.type_to_handler_dict = dict()
         for producer in args:
-            self.type_to_handler_dict[producer.features_keeper.record_type] = RecordTypeHandler(producer)
+            self.type_to_handler_dict[producer.features_keeper.record_type] = RecordHandler(producer)
 
     def get_handler(self, type: RecordType):
         return self.type_to_handler_dict.get(type)
@@ -116,17 +117,18 @@ class Analyzer:
         # Chunks should be small enough to get profit from multithreading
         # but big enough to don't flush them to files too often.
         chunk_size = items_count / threads_number
-        # We can dump up to 100 MB chunks without RAM overload. Let's use 20000 lines.
-        # We can parse about 10 lines from rc item and about 1000 lines from pr item.
+        # We can dump up to 100 MB chunks without RAM overload. Let's use 20000 lines (i.e. such number of records
+        # could take such size).
+        # It is about 20 regular PRs and 2000 regular RCs.
         chunk_size_divider = 1
         if is_prs and chunk_size > 20:
             chunk_size_divider = chunk_size / 20
         if not is_prs and chunk_size > 2000:
             chunk_size_divider = chunk_size / 20
         chunk_size = int(chunk_size / chunk_size_divider)
-        logger.info("Start %d threads to analyze %d %ss using %d pts chunks.", threads_number,
+        logger.info("Start %d threads to analyze %d %ss using chunks, each %d pts.", threads_number,
                     items_count, item_name, chunk_size)
-        # Split items on chunks.
+        # Split items to chunks.
         chunks = self.chunks_generator(items, chunk_size)
         # Create threads poll and start analyzing.
         pool = multiprocessing.pool.ThreadPool(processes=threads_number)
@@ -153,40 +155,54 @@ class Analyzer:
 
 
 def analyze_raw_comments(logger: Logger, type_to_handler_dict: dict, rcs: []) -> int:
+    """
+    Analyzes raw comments. Saves data in specified handlers.
+    :param logger: Logger to use.
+    :param type_to_handler_dict: TODO ?.
+    :param rcs: List of RCs to analyze.
+    :return: Number of parsed records.
+    """
     records_number = 0
     common_handler = type_to_handler_dict.get(RecordType.GIT)
-    common_handler: RecordTypeHandler
+    common_handler: RecordHandler
     for rc in rcs:
         rc: RawComment
+        rc_id = rc.id
         git_files = parse_git_diff(rc.diff_hunk, rc.path)
         git_files_len = len(git_files)
         if git_files_len != 1:
-            logger.warning("parse_git_diff returns %d GitFile-s from %d raw comment", git_files_len, rc.id)
+            logger.warning("parse_git_diff returns %d GitFile-s from %d raw comment", git_files_len, rc_id)
             continue
         git_file: GitFile = git_files[0]
         # Parse GIT features.
-        records_len = common_handler.analyze(git_file, True, rc.id)
+        records_len = common_handler.analyze(git_file, True, rc_id)
         if records_len != 1:
             logger.warning("%s analyzer returns %d records for %d raw comment.", RecordType.GIT.name, records_len,
-                           rc.id)
+                           rc_id)
             continue
         # Parse features relative to attached parsers with standard RecordParser interface.
         handler = type_to_handler_dict.get(git_file.file_type)
         if handler:
-            handler: RecordTypeHandler
-            handler_records_len = len(handler.records)
+            handler: RecordHandler
+            handler_records_len = len(handler.analyze(git_file, True, rc_id))
             if handler_records_len != 1:
                 logger.warning("%s analyzer returns %d records for %d raw comment.", git_file.file_type.name,
-                               handler_records_len, rc.id)
+                               handler_records_len, rc_id)
                 continue
         records_number += 1
     return records_number
 
 
 def analyze_pull_requests(logger: Logger, type_to_handler_dict: dict, prs: []) -> int:
+    """
+    Analyzes pull requests. Saves data in handlers.
+    :param logger: Logger to use.
+    :param type_to_handler_dict: TODO ?.
+    :param prs: List of PRs to analyze.
+    :return: Number of parsed records.
+    """
     records_number = 0
-    common_handler = type_to_handler_dict.get(RecordType.GIT)
-    common_handler: RecordTypeHandler
+    common_handler: RecordHandler = type_to_handler_dict.get(RecordType.GIT)
     for pr in prs:
         pr: PullRequest
         git_files = parse_git_diff(str(pr.diff), None)
@@ -199,7 +215,7 @@ def analyze_pull_requests(logger: Logger, type_to_handler_dict: dict, prs: []) -
             # Parse features relative to attached parsers with standard RecordParser interface.
             handler = type_to_handler_dict.get(git_file.file_type)
             if handler:
-                handler: RecordTypeHandler
+                handler: RecordHandler
                 records_len = handler.analyze(git_file, False)
             records_number += records_len
     return records_number

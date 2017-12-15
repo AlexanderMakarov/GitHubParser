@@ -19,7 +19,7 @@ class Features(object):
             counter += 1
 
 
-class FeaturesKeeper:
+class FeaturesKeeper(object):
     """
     Class to handle features list. Should be associated with single 'Features' class.
     Provides ability to keep features for one record in Numpy array of pre-known size, build template for such record
@@ -27,10 +27,7 @@ class FeaturesKeeper:
     I.e. defining one feature takes constant time and doesn't depend from count of features.
     Also it handles list-based features. See `add_vocabulary_feature_value` method.
     """
-
-    record_type: RecordType
-    features: Features
-    vocabulary_features: np.ndarray
+    __slots__ = ['record_type', 'features', 'features_number', 'vocabulary_features']
 
     def __init__(self, record_type: RecordType, features: Features):
         self.record_type = record_type
