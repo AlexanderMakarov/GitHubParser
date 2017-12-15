@@ -3,13 +3,12 @@ import numpy as np
 from analyzer.git_dao import *
 
 
-class RecordsProducer:
+class RecordsProducer(object):
     """
     Parses records from specified Git objects. Associated with single 'FeaturesKeeper'.
     Note: Numpy arrays ('ndarray') are faster and takes less RAM.
     """
-
-    features_keeper: FeaturesKeeper
+    __slots__ = ['features_keeper']
 
     def __init__(self, features_keeper: FeaturesKeeper):
         self.features_keeper = features_keeper

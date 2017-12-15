@@ -18,7 +18,6 @@ if __name__ == '__main__':
     parser.add_argument('rcs', type=int, nargs='?', default=-1, help='Raw Comments count.')
     parser.add_argument('prs', type=int, nargs='?', default=-1, help='Pull Requests count.')
     args = parser.parse_args()
-    print("rcs=%d, prs=%d" % (args.rcs, args.prs))
 
     # Connect db.
     Session = sessionmaker(autoflush=False)
@@ -37,8 +36,8 @@ if __name__ == '__main__':
     # Use only closed PRs.
     prs = session.query(PullRequest).filter(PullRequest.state == "closed").limit(args.prs).all()
     # Build analyzer.
-    analyzer = Analyzer(logger, GitRecordsProducer())
-    # TODO analyzer = Analyzer(GitRecordsProducer(), XmlRecordsProducer(), SwiftRecordsProducer())
+    analyzer = Analyzer(logger, True, GitRecordsProducer())
+    # TODO analyzer = Analyzer(logger, True, GitRecordsProducer(), XmlRecordsProducer(), SwiftRecordsProducer())
     # Start analyze.
     time2 = datetime.today()
     logger.info("Load %d raw comments and %d pull requests in %s.", len(raw_comments), len(prs),

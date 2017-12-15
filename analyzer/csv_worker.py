@@ -2,7 +2,8 @@ import csv
 import os
 import numpy as np
 from analyzer.record_type import RecordType
-import fileinput
+import threading
+import queue
 
 
 my_path = os.path.realpath(__file__)
@@ -29,7 +30,7 @@ def get_vocabulary_csv_path(feature_name: str):
     return os.path.join(CSV_FOLDER, "%s_%s" % (feature_name, VOCABULARY_CSV_NAME))
 
 
-def dump_features(names: [], rows: []):
+def dump_features(names: list, rows: list):
     # names - features names. Row - 2d array, same size as 'names'
     # First columns - features of one type. Last column - output value.
     _prepare_folder()
@@ -56,7 +57,7 @@ def normalise_row_values(row):  # TODO remove - analyzer should use right values
     return data
 
 
-def dump_train(net_name: str, feature_names: [], rows: []):
+def dump_train(net_name: str, feature_names: list, rows: list):
     # names - features names + 1 columns for RCClass identifier. Row - same size as 'names'
     _prepare_folder()
     names = [len(rows), len(feature_names)]
@@ -70,7 +71,7 @@ def dump_train(net_name: str, feature_names: [], rows: []):
     return file_path
 
 
-def dump_test(net_name: str, feature_names: [], rows: []):
+def dump_test(net_name: str, feature_names: list, rows: list):
     # names - features names + 1 columns for RCClass identifier. Row - same size as 'names'
     _prepare_folder()
     names = [len(rows), len(feature_names)]
@@ -84,7 +85,7 @@ def dump_test(net_name: str, feature_names: [], rows: []):
     return file_path
 
 
-def dump_rcclasses(rcclasses: []):  # TODO remove if is really outdated.
+def dump_rcclasses(rcclasses: list):  # TODO remove if is really outdated.
     _prepare_folder()
     file_path = os.path.join(CSV_FOLDER, "rclasses.csv")
     with open(file_path, 'w', encoding='utf-8', newline='') as csv_file:
@@ -107,54 +108,72 @@ def get_record_file_path(record_type: RecordType):
     return os.path.join(CSV_FOLDER, "records_%s.csv" % (record_type.name))
 
 
-class FileAppender:  # Don't use csv_writer because it appends to file by line (slow) and cannot preappend header row.
+class FileDumper:  # Don't use csv_writer because it appends to file by line (slow) and cannot preappend header row.
     def __init__(self, record_type: RecordType):
         self.record_type = record_type
         self.file_path = get_record_file_path(record_type)
-        self.csv_file = None
 
-    def open_file(self):
-        self.csv_file = open(self.file_path, 'w', encoding='utf-8', newline='')
+    def flush_records(self, records: list):
+        np_array = np.asarray(records)
+        np.savetxt(self.file_path, np_array, fmt="%d", delimiter=",")
 
-    def flush_records(self, records: []):
-        if self.csv_file is None:
-            self.open_file()
-        for record in records:
-            #list_strings = np.char.mod('%d', record)
-            list_strings = [str(x) for x in np.nditer(record)]
-            row = ",".join(list_strings)
-            self.csv_file.write(row + "\n")
-        self.csv_file.flush()
-
-    def write_head(self, flushed_records_number: int, feature_names: []):  # Also closes file.
+    def write_head(self, flushed_records_number: int, feature_names: list):  # Also closes file.
         names = [str(flushed_records_number), str(len(feature_names))] + feature_names
-        head_row = ",".join(names)
+        head_row = ",".join(names) + "\n"
         # https://stackoverflow.com/questions/5914627/prepend-line-to-beginning-of-a-file
         # https://stackoverflow.com/questions/11645876/how-to-efficiently-append-a-new-line-to-the-starting-of-a-large-file
         self.close()
         with open(self.file_path, 'r+') as file:
             data = file.read()  # Assume we can afford keep whole file content in memory.
             file.seek(0)
-            file.write(head_row + "\n")
+            file.write(head_row)
             file.write(data)
 
     def close(self):
-        if self.csv_file:
-            self.csv_file.close()
-            self.csv_file = None
+        pass
 
 
-def dump_records(record_type: RecordType, feature_names: list, records: list):
-    file_path = get_record_file_path(record_type)
-    # Make head row here to clean 'records' from memory ASAP.
-    head_row_values = [str(len(records)), str(len(feature_names))] + list(feature_names)
-    np_array = np.asarray(records)
-    np.savetxt(file_path, np_array, fmt="%d", delimiter=",")
-    with open(file_path, 'r+') as file:
-        data = file.read()  # Assume we can afford keep whole file content in memory.
-        file.seek(0)
-        file.write(",".join(head_row_values) + "\n")
-        file.write(data)
+class ChunksFileDumper(FileDumper):
+    def __init__(self, record_type: RecordType):
+        super().__init__(record_type)
+        self.queue = queue.Queue()
+        self.dump_thread = DumpRecordsThread(self.file_path, self.queue)
+        self.dump_thread.setDaemon(True)
+        self.dump_thread.start()
+
+    def flush_records(self, records: list):
+        self.queue.put(records)
+
+    def close(self):
+        self.dump_thread.close()
+
+
+class DumpRecordsThread(threading.Thread):
+    def __init__(self, file_path: str, queue: queue.Queue):
+        threading.Thread.__init__(self)
+        self.is_work = True
+        self.is_first = True
+        self.queue = queue
+        self.file_path = file_path
+        self.file = open(self.file_path, 'w', encoding='utf-8', newline='')
+
+    def dump(self, records: list):
+        if not self.is_first:
+            self.file.write("\n")
+        self.is_first = False
+        self.file.write("\n".join((",".join((str(x) for x in np.nditer(record))) for record in records)))
+        self.file.flush()
+
+    def run(self):
+        while self.is_work:
+            result = self.queue.get()
+            self.dump(result)
+            self.queue.task_done()
+
+    def close(self):
+        self.queue.join()
+        self.is_work = False
+        self.file.close()
 
 
 def dump_vocabulary(feature_name: str, vocabulary: dict):
