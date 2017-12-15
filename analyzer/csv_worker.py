@@ -112,25 +112,22 @@ class FileAppender:  # Don't use csv_writer because it appends to file by line (
         self.record_type = record_type
         self.file_path = get_record_file_path(record_type)
         self.csv_file = None
-        self.flushed_records_number = 0
 
     def open_file(self):
         self.csv_file = open(self.file_path, 'w', encoding='utf-8', newline='')
 
-    def write_records(self, records: []):
+    def flush_records(self, records: []):
         if self.csv_file is None:
             self.open_file()
-        records_number = len(records)
         for record in records:
             #list_strings = np.char.mod('%d', record)
             list_strings = [str(x) for x in np.nditer(record)]
             row = ",".join(list_strings)
             self.csv_file.write(row + "\n")
         self.csv_file.flush()
-        self.flushed_records_number += records_number
 
-    def write_head(self, feature_names: []):  # Also closes file.
-        names = [str(self.flushed_records_number), str(len(feature_names))] + feature_names
+    def write_head(self, flushed_records_number: int, feature_names: []):  # Also closes file.
+        names = [str(flushed_records_number), str(len(feature_names))] + feature_names
         head_row = ",".join(names)
         # https://stackoverflow.com/questions/5914627/prepend-line-to-beginning-of-a-file
         # https://stackoverflow.com/questions/11645876/how-to-efficiently-append-a-new-line-to-the-starting-of-a-large-file

@@ -18,12 +18,13 @@ class RecordsProducer:
     def check_binary_line(line: str):
         return "\x00" in line or any(ord(x) > 0x80 for x in line)
 
-    def analyze_git_file_recursively(self, file: GitFile, is_diff_hunk=False) -> np.ndarray:
+    def analyze_git_file_recursively(self, file: GitFile, is_diff_hunk=False) -> list:
         """
-        Analyzes specified 'GitFile'.
+        Analyzes specified 'GitFile'. Returns list of numpy arrays-records.
+        Don't use 2D numpy array because need to append and extend list of records.
         :param file: 'GitFile' to analyze.
         :param is_diff_hunk: Flag that we are interested only in last line in first piece in file.
-        :return: 2D numpy array with parsed records ([row][features]).
+        :return: List of numpy arrays with parsed records.
         """
         records = []
         file_level_features = self.analyze_git_file(file)
@@ -42,7 +43,7 @@ class RecordsProducer:
                         break  # Don't check binary files.
                 line_level_features = self.analyze_git_line(piece_level_features, line)
                 records.append(line_level_features)  # Save features.
-        return np.array(records)
+        return records
 
     # To override.
     def analyze_git_file(self, file: GitFile) -> np.ndarray:

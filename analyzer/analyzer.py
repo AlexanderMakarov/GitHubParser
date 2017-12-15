@@ -18,15 +18,15 @@ class RecordHandler(object):
     """
     Keep records during analyzing and dump records to file(s). Works with records only one type.
     For one session of analyzing need to create and use few handlers - one per each record type.
-
     """
-    __slots__ = ['record_type', 'producer', 'file_appender', 'records']
+    __slots__ = ['record_type', 'producer', 'file_appender', '_records', 'flushed_records_number']
 
     def __init__(self, producer: RecordsProducer):
         self.record_type = producer.features_keeper.record_type
         self.producer = producer
         self.file_appender = FileAppender(self.record_type)
-        self.records = []
+        self._records = []
+        self.flushed_records_number = 0
 
     def analyze(self, git_file: GitFile, is_diff_hunk, rc_id: int = -1):
         """
@@ -36,28 +36,29 @@ class RecordHandler(object):
         :param rc_id: RawComment ID if exist.
         :return: Count of records produced from specified git file.
         """
-        # 'records' below is Numpy 1D array.
         records = self.producer.analyze_git_file_recursively(git_file, is_diff_hunk)
         if rc_id > 0:
             for record in records:
                 record[self.producer.features_keeper.features.RC_ID] = rc_id
-        self.records.extend(records)  # Support case when 'analyze' called few times before 'clean_records' call.
+        self._records.extend(records)  # Support case when 'analyze' called few times before 'clean_records' call.
         return len(records)
 
     def clean_records(self):
-        self.records = []
+        self._records = []
 
     def flush_records(self):
-        if len(self.records) >= 0:
-            self.file_appender.write_records(self.records)
+        records_len = len(self._records)
+        if records_len >= 0:
+            self.file_appender.flush_records(self._records)
             self.clean_records()
+            self.flushed_records_number += records_len
 
     def finalize_records_file(self, logger: Logger):
-        logger.info("  %d bytes for %d records list with %d features each", sys.getsizeof(self.records),
-                    len(self.records), len(self.records[0]))  # TODO correct
+        logger.info("  %d bytes for %d records list with %d features each", sys.getsizeof(self._records),
+                    len(self._records), len(self._records[0]))
         # self.flush_records(logger)
-        # self.file_appender.write_head(self.producer.features_keeper.get_feature_names())
-        dump_records(self.record_type, self.producer.features_keeper.get_feature_names(), self.records)
+        # self.file_appender.write_head(self.flushed_records_number, self.producer.features_keeper.get_feature_names())
+        dump_records(self.record_type, self.producer.features_keeper.get_feature_names(), self._records)
         self.clean_records()
         self.producer.features_keeper.dump_vocabulary_features(logger)
 
