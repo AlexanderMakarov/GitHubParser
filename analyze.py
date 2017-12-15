@@ -14,9 +14,9 @@ from analyzer.git.git_producer import GitRecordsProducer
 
 if __name__ == '__main__':
     # Parse command line arguments.
-    parser = argparse.ArgumentParser(description='Analyzes required RCs and PRs.')
-    parser.add_argument('rcs', type=int, nargs='?', help='Raw Comments count.')
-    parser.add_argument('prs', type=int, nargs='?', help='Pull Requests count.')
+    parser = argparse.ArgumentParser(description='Analyzes required RCs and PRs. By default all.')
+    parser.add_argument('rcs', type=int, nargs='?', default=-1, help='Raw Comments count.')
+    parser.add_argument('prs', type=int, nargs='?', default=-1, help='Pull Requests count.')
     args = parser.parse_args()
     print("rcs=%d, prs=%d" % (args.rcs, args.prs))
 
@@ -55,3 +55,5 @@ if __name__ == '__main__':
     analyzer.finalize(logger)
     time5 = datetime.today()
     logger.info("Dumped %d records in %s.", rc_records_count + pr_records_count, time5 - time4)
+    logger.info("Total %s for analyzing %d raw comments and %d pull requests.", time5 - time1, len(raw_comments),
+                len(prs))
