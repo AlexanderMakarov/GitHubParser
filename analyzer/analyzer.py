@@ -17,8 +17,13 @@ class Analyzer:
     Class to parse/analyze features from RawComment-s and PullRequest-s.
     Should be used in next way:
     1. Call 'analyze' method as many time as need. It will fill up 'records_XXX.csv' files by chunks.
-    2. When analyzing is over call 'finalize' method. It will preappend 'records_XXX.csv' files with header rows
-        and dump all "vocabulary features" into 'YYY_vocabulary.csv' files.
+    2. When analyzing is over call 'finalize' method. It:
+        - flushes remained records into file,
+        - dumps all "vocabulary features" into 'YYY_vocabulary.csv' files,
+        - reads records into RAM as lines,
+        - shuffles records-lines,
+        - separates records to "train" and "test" parts,
+        - writes records to 'XXX_train.csv' and 'XXX_test.csv' files with header rows.
     """
     logger: Logger
     type_to_handler_dict: dict
@@ -100,6 +105,7 @@ class Analyzer:
         for i, result_item in enumerate(pool.imap_unordered(func, chunks)):
             total_count += result_item
             completed += chunk_size
+            completed = min(completed, items_count)  # Last chunk may has size less than other.
             time2 = datetime.today()
             if (time2 - last_log_time).total_seconds() >= 1:  # Log at least every second.
                 total_seconds = (time2 - time1).total_seconds()
@@ -108,9 +114,6 @@ class Analyzer:
                 last_log_time = time2
                 self.logger.info("%d/%d analyzed in %s. Remains about %s.", completed, items_count, time2 - time1,
                                  estimate)
-        time2 = datetime.today()
-        self.logger.info("Total %d records get after %d %ss analyzing. Take %s.", total_count, items_count, item_name,
-                         time2 - time1)
         return total_count
 
 

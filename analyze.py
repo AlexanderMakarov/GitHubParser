@@ -17,6 +17,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Analyzes required RCs and PRs. By default all.')
     parser.add_argument('rcs', type=int, nargs='?', default=-1, help='Raw Comments count.')
     parser.add_argument('prs', type=int, nargs='?', default=-1, help='Pull Requests count.')
+    parser.add_argument('--chunks', action='store_true',
+                        help='Flag to flush records by chunks. It allows to reduce RAM load but slows down analyzing'
+                             ' speed more than 2 times.')
     args = parser.parse_args()
 
     # Connect db.
@@ -36,8 +39,8 @@ if __name__ == '__main__':
     # Use only closed PRs.
     prs = session.query(PullRequest).filter(PullRequest.state == "closed").limit(args.prs).all()
     # Build analyzer.
-    analyzer = Analyzer(logger, True, GitRecordsProducer())
-    # TODO analyzer = Analyzer(logger, True, GitRecordsProducer(), XmlRecordsProducer(), SwiftRecordsProducer())
+    analyzer = Analyzer(logger, args.chunks, GitRecordsProducer())
+    # TODO analyzer = Analyzer(logger, args.chunks, GitRecordsProducer(), XmlRecordsProducer(), SwiftRecordsProducer())
     # Start analyze.
     time2 = datetime.today()
     logger.info("Load %d raw comments and %d pull requests in %s.", len(raw_comments), len(prs),

@@ -74,6 +74,16 @@ class FileDumper:  # Don't use csv_writer because it appends to file by line (sl
             file.write(head_row)
             file.write(data)
 
+    def write_all_records_as_lines_with_head(self, train_lines: list, test_lines: list, feature_names: list):
+        test_file_path = get_test_csv_path(self.record_type.name)
+        with open(test_file_path, 'w', encoding='utf-8', newline='') as file:
+            file.write("%d,%d,%s\n" % (len(train_lines), len(feature_names), ",".join(feature_names)))
+            file.writelines(train_lines)
+        train_file_path = get_train_csv_path(self.record_type.name)
+        with open(train_file_path, 'w', encoding='utf-8', newline='') as file:
+            file.write("%d,%d,%s\n" % (len(test_lines), len(feature_names), ",".join(feature_names)))
+            file.writelines(test_lines)
+
     def close(self):
         pass
 

@@ -4,6 +4,8 @@ from logging import Logger
 from analyzer.records_producer import RecordsProducer
 from analyzer.csv_worker import dump_vocabulary
 import sys
+import random
+from datetime import datetime
 
 
 class RecordHandler(object):
@@ -39,6 +41,11 @@ class RecordHandler(object):
         self._records = []
 
     def flush_records(self, logger: Logger) -> int:
+        """
+        Flushes internally saved records into file.
+        :param logger: Logger to use.
+        :return: Number of flushed records.
+        """
         records = self._records
         records_len = len(records)
         if records_len > 0:
@@ -50,13 +57,55 @@ class RecordHandler(object):
         return records_len
 
     def dump_vocabulary_features(self, logger: Logger):
+        """
+        Dumps vocabulary features into files.
+        :param logger: Logger to use.
+        """
         for feature_index, feature_vocabulary in enumerate(self.producer.vocabulary_features):
             if feature_vocabulary is not None:
                 feature_name = self.producer.features.__slots__[feature_index]
-                logger.info("  dump %s feature vocabulary with %d items", feature_name, len(feature_vocabulary))
+                logger.debug("  dump %s feature vocabulary with %d items", feature_name, len(feature_vocabulary))
                 dump_vocabulary(feature_name, feature_vocabulary)
 
-    def finalize_records_file(self, logger: Logger):
+    def finalize_records_file(self, logger: Logger, train_ratio = 0.8):
+        """
+        Finalizes records files. In details, it:
+        - flushes remained records into file,
+        - dumps all "vocabulary features" into 'YYY_vocabulary.csv' files,
+        - reads records into RAM as lines,
+        - shuffles records-lines,
+        - separates records to "train" and "test" parts,
+        - writes records to 'XXX_train.csv' and 'XXX_test.csv' files with header rows.
+        :param logger: Logger to use.
+        :param train_ratio: Ratio of 'train' records in all records.
+        """
+        # Yes, even if it is single flush for whole analyzing, better to dump "raw" records to file first. Because:
+        #   a) it is good to have intermediate results,
+        #   b) after read records as lines they would occupy less place in RAM (seems like).
         self.flush_records(logger)
-        self.file_dumper.write_head(self.flushed_records_number, self.producer.get_feature_names())
+        self.file_dumper.close()
         self.dump_vocabulary_features(logger)
+        # Read records into RAM.
+        time1 = datetime.now()
+        with open(self.file_dumper.file_path, 'r', encoding='utf-8', newline='') as file:
+            records = file.readlines()
+        records_len = len(records)
+        time2 = datetime.now()
+        logger.debug("  read %d records from '%s' in %s", records_len, self.file_dumper.file_path, time2-time1)
+        # Shuffle records.
+        random.shuffle(records)
+        time3 = datetime.now()
+        logger.debug("  shuffle %d records in %s", records_len, time3-time2)
+        # Split to train and test.
+        train_len = int(len(records) * train_ratio)
+        train_records = records[0: train_len]
+        test_records = records[train_len:]
+        time4 = datetime.now()
+        logger.debug("  split records with ratio %f to train (%d) and test (%d) parts in %s", train_ratio, train_len,
+                     records_len-train_len, time4-time3)
+        # Write 2 records sets into files.
+        self.file_dumper.write_all_records_as_lines_with_head(train_records, test_records,
+                                                              self.producer.get_feature_names())
+        time5 = datetime.now()
+        logger.debug("  write %d train and %d test records into files in %s", len(train_records), len(test_records),
+                     time5-time4)
