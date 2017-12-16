@@ -55,7 +55,10 @@ if __name__ == '__main__':
     logger.info("Got %d records due %d pull requests analyzing in %s.", pr_records_count, len(prs),
                 time4 - time3)
     analyzer.finalize(logger)
+    records_count = rc_records_count + pr_records_count
     time5 = datetime.today()
-    logger.info("Dumped %d records in %s.", rc_records_count + pr_records_count, time5 - time4)
+    logger.info("Dumped %d records in %s.", records_count, time5 - time4)
     logger.info("Total %s for analyzing %d raw comments and %d pull requests.", time5 - time1, len(raw_comments),
                 len(prs))
+    logger.info("Percent of negative records (without RC ID) in all records is %f (%d vs %d).",
+                pr_records_count/records_count, rc_records_count, pr_records_count)
