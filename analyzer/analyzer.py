@@ -4,7 +4,7 @@ from logging import Logger
 from functools import partial
 
 from analyzer.git_diff_parser import parse_git_diff
-from analyzer.record_handler import RecordHandler
+from analyzer.records_handler import RecordsHandler
 from analyzer.record_type import RecordType
 from model.pull_request import PullRequest
 from model.raw_comment import RawComment
@@ -12,9 +12,9 @@ from analyzer.csv_worker import FileDumper, ChunksFileDumper
 from analyzer.git_dao import GitFile
 
 
-class Analyzer:
+class Analyzer(object):
     """
-    Class to parse/analyze features from RawComment-s and PullRequest-s.
+    Top level class to analyze features from RawComment-s and PullRequest-s.
     Should be used in next way:
     1. Call 'analyze' method as many time as need. It will fill up 'records_XXX.csv' files by chunks.
     2. When analyzing is over call 'finalize' method. It:
@@ -24,9 +24,10 @@ class Analyzer:
         - shuffles records-lines,
         - separates records to "train" and "test" parts,
         - writes records to 'XXX_train.csv' and 'XXX_test.csv' files with header rows.
+    3. To analyze something else without affecting to/from previously analyzed records call 'clean_handlers' first,
+        next see steps above.
     """
-    logger: Logger
-    type_to_handler_dict: dict
+    __slots__ = ['logger', 'type_to_handler_dict', 'is_dump_by_chunks']
 
     def __init__(self, logger: Logger, is_dump_by_chunks: bool, *args):
         self.logger = logger
@@ -38,14 +39,13 @@ class Analyzer:
                 file_dumper = ChunksFileDumper(record_type)
             else:
                 file_dumper = FileDumper(record_type)
-            self.type_to_handler_dict[record_type] = RecordHandler(producer, file_dumper)
+            self.type_to_handler_dict[record_type] = RecordsHandler(producer, file_dumper)
+
+    def get_supported_types(self) -> set:
+        return self.type_to_handler_dict.keys()
 
     def get_handler(self, type: RecordType):
         return self.type_to_handler_dict.get(type)
-
-    def clean_handlers(self):
-        for handler in self.type_to_handler_dict.values():
-            handler.clean_records()
 
     def flush_handlers(self, logger: Logger):
         for handler in self.type_to_handler_dict.values():
@@ -116,6 +116,10 @@ class Analyzer:
                                  estimate)
         return total_count
 
+    def clean_handlers(self):
+        for handler in self.type_to_handler_dict.values():
+            handler.close()
+
 
 def analyze_raw_comments(analyzer: Analyzer, rcs: []) -> int:
     """
@@ -126,7 +130,7 @@ def analyze_raw_comments(analyzer: Analyzer, rcs: []) -> int:
     """
     records_number = 0
     common_handler = analyzer.get_handler(RecordType.GIT)
-    common_handler: RecordHandler
+    common_handler: RecordsHandler
     for rc in rcs:
         rc: RawComment
         rc_id = rc.id
@@ -145,7 +149,7 @@ def analyze_raw_comments(analyzer: Analyzer, rcs: []) -> int:
         # Parse features relative to attached parsers with standard RecordParser interface.
         handler = analyzer.get_handler(git_file.file_type)
         if handler:
-            handler: RecordHandler
+            handler: RecordsHandler
             handler_records_len = handler.analyze(git_file, True, rc_id)
             if handler_records_len != 1:
                 analyzer.logger.warning("%s analyzer returns %d records for %d raw comment.", git_file.file_type.name,
@@ -157,32 +161,34 @@ def analyze_raw_comments(analyzer: Analyzer, rcs: []) -> int:
     return records_number
 
 
+def analyze_git_file(common_handler: RecordsHandler, handlers_dict: dict, git_file: GitFile) -> (int, RecordType):
+    # Parse common features.
+    records_len = common_handler.analyze(git_file, False)
+    # Parse features relative to attached parsers with standard RecordParser interface.
+    handler: RecordsHandler = handlers_dict.get(git_file.file_type)
+    handler_records_len = 0
+    if handler:
+        handler_records_len = handler.analyze(git_file, False)
+    return records_len + handler_records_len, git_file.file_type
+
+
 def analyze_pull_requests(analyzer: Analyzer, prs: []) -> int:
     """
     Analyzes pull requests. Saves data in handlers.
     :param analyzer: Analyzer instance to use.
     :param prs: List of PRs to analyze.
-    :return: Number of parsed records.
+    :return: Number of obtained and saved in analyzer records.
     """
     records_number = 0
-    common_handler: RecordHandler = analyzer.get_handler(RecordType.GIT)
     for pr in prs:
-        pr: PullRequest
         git_files = parse_git_diff(str(pr.diff), None)
-        if len(git_files) > 20:  # Don't check really big pr-s.
+        if len(git_files) > 20:  # Don't check really big PR-s.
             continue
+        type_to_handler_dict = analyzer.type_to_handler_dict
+        common_handler = type_to_handler_dict.get(RecordType.GIT)
         for git_file in git_files:
-            git_file: GitFile
-            # Parse common features.
-            records_len = 0
-            records_len = common_handler.analyze(git_file, False)
-            # Parse features relative to attached parsers with standard RecordParser interface.
-            handler = analyzer.get_handler(git_file.file_type)
-            handler_records_len = 0
-            if handler:
-                handler: RecordHandler
-                handler_records_len = handler.analyze(git_file, False)
-            records_number += records_len + handler_records_len
+            file_records_number, _ = analyze_git_file(common_handler, type_to_handler_dict, git_file)
+            records_number += file_records_number
     if analyzer.is_dump_by_chunks:
         analyzer.flush_handlers(analyzer.logger)
     return records_number

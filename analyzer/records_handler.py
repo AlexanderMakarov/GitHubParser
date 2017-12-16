@@ -8,19 +8,18 @@ import random
 from datetime import datetime
 
 
-class RecordHandler(object):
+class RecordsHandler(object):
     """
-    Keep records during analyzing and dump records to file(s). Works with records only one type.
-    For one session of analyzing need to create and use few handlers - one per each record type.
+    Keep records of one type during analyzing and dump records to file(s).
+    Use specified 'RecordsProducer' to obtain and specified 'FileDumper' to dump records of one type.
     """
-    __slots__ = ['record_type', 'producer', 'file_dumper', '_records', 'flushed_records_number']
+    __slots__ = ['record_type', 'producer', 'file_dumper', '_records']
 
     def __init__(self, producer: RecordsProducer, file_dumper: FileDumper):
         self.record_type = producer.record_type
         self.producer = producer
         self.file_dumper = file_dumper
         self._records = []
-        self.flushed_records_number = 0
 
     def analyze(self, git_file: GitFile, is_diff_hunk, rc_id: int = -1) -> int:
         """
@@ -37,8 +36,9 @@ class RecordHandler(object):
         self._records.extend(records)  # Support case when 'analyze' called few times before 'clean_records' call.
         return len(records)
 
-    def clean_records(self):
+    def close(self):
         self._records = []
+        self.file_dumper.close()
 
     def flush_records(self, logger: Logger) -> int:
         """
@@ -52,8 +52,7 @@ class RecordHandler(object):
             logger.debug("  dump %d bytes for %d records list with %d features each", sys.getsizeof(records),
                          len(records), len(records[0]))
             self.file_dumper.flush_records(records)
-            self.clean_records()
-            self.flushed_records_number += records_len
+            self.close()
         return records_len
 
     def dump_vocabulary_features(self, logger: Logger):
@@ -83,29 +82,32 @@ class RecordHandler(object):
         #   a) it is good to have intermediate results,
         #   b) after read records as lines they would occupy less place in RAM (seems like).
         self.flush_records(logger)
-        self.file_dumper.close()
+        self.close()
         self.dump_vocabulary_features(logger)
         # Read records into RAM.
-        time1 = datetime.now()
+        time1 = datetime.today()
         with open(self.file_dumper.file_path, 'r', encoding='utf-8', newline='') as file:
             records = file.readlines()
         records_len = len(records)
-        time2 = datetime.now()
+        time2 = datetime.today()
         logger.debug("  read %d records from '%s' in %s", records_len, self.file_dumper.file_path, time2-time1)
         # Shuffle records.
         random.shuffle(records)
-        time3 = datetime.now()
+        time3 = datetime.today()
         logger.debug("  shuffle %d records in %s", records_len, time3-time2)
         # Split to train and test.
         train_len = int(len(records) * train_ratio)
         train_records = records[0: train_len]
         test_records = records[train_len:]
-        time4 = datetime.now()
+        time4 = datetime.today()
         logger.debug("  split records with ratio %f to train (%d) and test (%d) parts in %s", train_ratio, train_len,
                      records_len-train_len, time4-time3)
         # Write 2 records sets into files.
         self.file_dumper.write_all_records_as_lines_with_head(train_records, test_records,
                                                               self.producer.get_feature_names())
-        time5 = datetime.now()
+        time5 = datetime.today()
         logger.debug("  write %d train and %d test records into files in %s", len(train_records), len(test_records),
                      time5-time4)
+
+    def get_records(self):
+        return self._records

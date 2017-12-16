@@ -19,11 +19,12 @@ class Features(object):
 
 class RecordsProducer(object):
     """
-    Base class to parse features of single record type from git DAO into one or few records.
+    Base class to parse specific set of features from git DAO-s.
     Provides ability to keep features for one record in Numpy array of pre-known size, build template for such record
     and set values into record array with `record[self.features.FOO] = bar` syntax.
-    Defining one feature takes constant time and doesn't depend from count of features.
-    Also it handles list-based features. See `add_vocabulary_feature_value` method.
+    Defining one feature takes constant time and doesn't depend (very) from amount of features.
+    Also it handles vocabulary-based features. See `add_vocabulary_feature_value` method.
+    To override. Keep in mind that amount of time required for analyzing very depends from this class performance.
     """
     __slots__ = ['record_type', 'features', 'features_number', 'vocabulary_features']
 
