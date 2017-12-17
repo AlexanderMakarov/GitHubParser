@@ -2,6 +2,9 @@ from enum import Enum
 import os
 
 
+# TODO convert all into slots.
+
+
 class GitLineType(Enum):
     ADD = 1
     UNCHANGED = 0
@@ -35,8 +38,7 @@ def parse_file_type(file_path: str):
 
 
 class GitPiece:
-    def __init__(self, from_line: int, from_lines: int, to_line: int, to_lines: int, parent_line: str,\
-                lines = []):
+    def __init__(self, from_line: int, from_lines: int, to_line: int, to_lines: int, parent_line: str, lines = []):
         self.from_line = from_line
         self.from_lines = from_lines
         self.to_line = to_line

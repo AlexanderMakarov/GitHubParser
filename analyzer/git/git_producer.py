@@ -5,7 +5,7 @@ from analyzer.records_producer import Features, RecordsProducer
 
 
 class GitFeatures(Features):
-    __slots__ = Features.__slots__ + ['GIT_LINE_TYPE', 'GIT_PIECES_NUMBER', 'GIT_LINE_LENGTH', 'GIT_FILE']
+    __slots__ = Features.__slots__ + ['GIT_LINE_TYPE', 'GIT_PIECES_NUMBER', 'GIT_LINE_LENGTH', 'V_GIT_FILE']
 
 
 class GitRecordsProducer(RecordsProducer):
@@ -15,7 +15,7 @@ class GitRecordsProducer(RecordsProducer):
     def analyze_git_file(self, file: GitFile) -> np.ndarray:
         record = self.get_row_container()
         record[self.features.GIT_PIECES_NUMBER] = len(file.pieces)
-        self.add_vocabulary_feature_value(self.features.GIT_FILE, file.file_path, record)
+        self.add_vocabulary_feature_value(self.features.V_GIT_FILE, file.file_path, record)
         #record["git_is_%s" % file.file_type] = True  # TODO complete with lists of values
         #record["git_is_file_%s" % file.file_path] = True
         return record

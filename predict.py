@@ -34,7 +34,7 @@ if __name__ == '__main__':
     # Build analyzer.
     analyzer = Analyzer(logger, False, GitRecordsProducer())
     # TODO analyzer = Analyzer(logger, args.chunks, GitRecordsProducer(), XmlRecordsProducer(), SwiftRecordsProducer())
-    ml = MachineLearning(analyzer, None, analyzer.get_raw_comments_number())
+    ml = MachineLearning(analyzer, None)
     # Train network.
     time1 = datetime.today()
     ml.train(args.steps_count)

@@ -4,6 +4,7 @@ import numpy as np
 from analyzer.record_type import RecordType
 import threading
 import queue
+from collections import namedtuple
 
 
 my_path = os.path.realpath(__file__)
@@ -11,6 +12,7 @@ CSV_FOLDER = os.path.normpath(os.path.join(my_path, "..", "..", "instance", "csv
 TRAIN_CSV_NAME = "train.csv"
 TEST_CSV_NAME = "test.csv"
 VOCABULARY_CSV_NAME = "vocabulary.csv"
+ANALYZER_INFO_NAME = "analyzer_info.csv"
 
 
 def _prepare_folder():
@@ -30,6 +32,10 @@ def get_vocabulary_csv_path(feature_name: str):
     return os.path.join(CSV_FOLDER, "%s_%s" % (feature_name, VOCABULARY_CSV_NAME))
 
 
+def get_analyzer_info_path():
+    return os.path.join(CSV_FOLDER, ANALYZER_INFO_NAME)
+
+
 def dump_rcclasses(rcclasses: list):  # TODO remove if is really outdated.
     _prepare_folder()
     file_path = os.path.join(CSV_FOLDER, "rclasses.csv")
@@ -41,12 +47,12 @@ def dump_rcclasses(rcclasses: list):  # TODO remove if is really outdated.
     return file_path
 
 
-def get_two_lines_of_test_file(net_name: str):
+def get_record_info_from_train(net_name: str) -> (int, int, list):
     file_path = get_test_csv_path(net_name)
     with open(file_path, 'r', encoding='utf-8', newline='') as csv_file:
         reader = csv.reader(csv_file)
-        values = list(reader)
-        return values[0], values[1]
+        header = next(reader)
+        return int(header[0]), int(header[1]), header[2:]
 
 
 def get_record_file_path(record_type: RecordType):
@@ -137,3 +143,22 @@ def dump_vocabulary(feature_name: str, vocabulary: dict):
     data = "\n".join(k for k in sorted(vocabulary, key=vocabulary.get))
     with open(file_path, 'w', encoding='utf-8', newline='') as file:
         file.write(data)
+
+
+AnalyzerInfo = namedtuple("AnalyzerInfo", ['classes_number', 'records_number', 'positive_records_number',
+                          'train_ratio', 'used_handlers_types'])
+
+
+def save_analyzer_info(info: AnalyzerInfo):
+    with open(get_analyzer_info_path(), 'w', encoding='utf-8', newline='') as file:
+        file.write("%d,%d,%d,%f\n" % (info.classes_number, info.records_number, info.positive_records_number,
+                                    info.train_ratio))
+        file.write(",".join((x.name for x in info.used_handlers_types)))
+
+
+def read_analyzer_info() -> AnalyzerInfo:
+    with open(get_analyzer_info_path()) as csv_file:
+        reader = csv.reader(csv_file)
+        numbers = next(reader)
+        types = next(reader)
+    return AnalyzerInfo(int(numbers[0]), int(numbers[1]), int(numbers[2]), float(numbers[3]), types)

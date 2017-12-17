@@ -8,6 +8,12 @@ from analyzer.git_dao import *
 
 
 class Features(object):
+    """
+    Base class for features. All fields are features names.
+    Each field is 'int' type with index of related feature in record.
+    Should be extended with `__slots__ = Features.__slots__ + ['FOO']`.
+    Vocabulary based features should have "V_" prefix.
+    """
     __slots__ = ['RC_ID']
 
     def __init__(self):
@@ -17,6 +23,10 @@ class Features(object):
             counter += 1
 
 
+def is_vocabulary_feature(feature_name: str) -> bool:
+    return feature_name.startswith("V_")
+
+
 class RecordsProducer(object):
     """
     Base class to parse specific set of features from git DAO-s.
@@ -24,14 +34,14 @@ class RecordsProducer(object):
     and set values into record array with `record[self.features.FOO] = bar` syntax.
     Defining one feature takes constant time and doesn't depend (very) from amount of features.
     Also it handles vocabulary-based features. See `add_vocabulary_feature_value` method.
-    To override. Keep in mind that amount of time required for analyzing very depends from this class performance.
+    To override. Keep in mind that amount of time required for analyzing very depends from this class implementation.
     """
     __slots__ = ['record_type', 'features', 'features_number', 'vocabulary_features']
 
     def __init__(self, record_type: RecordType, features: Features):
         self.record_type = record_type
         self.features = features
-        self.features_number = len(self.features.__slots__)
+        self.features_number = len(features.__slots__)
         self.vocabulary_features = np.empty(self.features_number, dtype=object)
         self.vocabulary_features.fill(None)
 
@@ -40,14 +50,14 @@ class RecordsProducer(object):
 
     def get_row_container(self) -> np.ndarray:
         """
-        :return: Numpy array for one record with 0 values for all features.
+        :return: Numpy array for one record with 0 value for all features.
         """
         return np.zeros(self.features_number, dtype=np.int16)
 
     def add_vocabulary_feature_value(self, feature: int, vocabulary_item: str, record: np.ndarray):
         """
         Adds into inner 'vocabulary_features' numpy 2D array vocabulary feature.
-        :param feature: Feature index.
+        :param feature: Feature index. Should has "V_" prefix.
         :param vocabulary_item: Value from vocabulary.
         :param record: Record to set feature value into.
         """

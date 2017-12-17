@@ -60,13 +60,13 @@ class RecordsHandler(object):
         Dumps vocabulary features into files.
         :param logger: Logger to use.
         """
-        for feature_index, feature_vocabulary in enumerate(self.producer.vocabulary_features):
+        for i, feature_vocabulary in enumerate(self.producer.vocabulary_features):
             if feature_vocabulary is not None:
-                feature_name = self.producer.features.__slots__[feature_index]
+                feature_name = self.producer.features.__slots__[i]
                 logger.debug("  dump %s feature vocabulary with %d items", feature_name, len(feature_vocabulary))
                 dump_vocabulary(feature_name, feature_vocabulary)
 
-    def finalize_records_file(self, logger: Logger, train_ratio = 0.8):
+    def finalize_records_file(self, logger: Logger, train_ratio):
         """
         Finalizes records files. In details, it:
         - flushes remained records into file,
@@ -81,7 +81,6 @@ class RecordsHandler(object):
         # Yes, even if it is single flush for whole analyzing, better to dump "raw" records to file first. Because:
         #   a) it is good to have intermediate results,
         #   b) after read records as lines they would occupy less place in RAM (seems like).
-        self.flush_records(logger)
         self.close()
         self.dump_vocabulary_features(logger)
         # Read records into RAM.

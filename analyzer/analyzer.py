@@ -5,10 +5,11 @@ from functools import partial
 
 from analyzer.git_diff_parser import parse_git_diff
 from analyzer.records_handler import RecordsHandler
+from analyzer.records_producer import RecordsProducer
 from analyzer.record_type import RecordType
 from model.pull_request import PullRequest
 from model.raw_comment import RawComment
-from analyzer.csv_worker import FileDumper, ChunksFileDumper
+from analyzer.csv_worker import FileDumper, ChunksFileDumper, save_analyzer_info, AnalyzerInfo
 from analyzer.git_dao import GitFile
 
 
@@ -27,13 +28,16 @@ class Analyzer(object):
     3. To analyze something else without affecting to/from previously analyzed records call 'clean_handlers' first,
         next see steps above.
     """
-    __slots__ = ['logger', 'type_to_handler_dict', 'is_dump_by_chunks']
+    __slots__ = ['logger', 'type_to_handler_dict', 'is_dump_by_chunks', 'flushed_records_number', 'positive_number']
 
     def __init__(self, logger: Logger, is_dump_by_chunks: bool, *args):
         self.logger = logger
         self.type_to_handler_dict = dict()
         self.is_dump_by_chunks = is_dump_by_chunks
+        self.flushed_records_number = 0
+        self.positive_number = 0
         for producer in args:
+            producer: RecordsProducer
             record_type = producer.record_type
             if is_dump_by_chunks:
                 file_dumper = ChunksFileDumper(record_type)
@@ -47,13 +51,19 @@ class Analyzer(object):
     def get_handler(self, type: RecordType):
         return self.type_to_handler_dict.get(type)
 
-    def flush_handlers(self, logger: Logger):
+    def flush_handlers(self):
         for handler in self.type_to_handler_dict.values():
-            handler.flush_records(logger)
+            handler: RecordsHandler
+            self.flushed_records_number += handler.flush_records(self.logger)
 
-    def finalize(self, logger: Logger):
+    def finalize(self, train_ratio: float):
+        self.flush_handlers()
         for handler in self.type_to_handler_dict.values():
-            handler.finalize_records_file(logger)
+            handler.finalize_records_file(self.logger, train_ratio)
+        # For now count of classes = positive_number.
+        info = AnalyzerInfo(self.positive_number, self.flushed_records_number, self.positive_number, train_ratio,
+                            self.type_to_handler_dict.keys())
+        save_analyzer_info(info)
 
     @staticmethod
     def chunks_generator(items: [], chunk_size: int):
@@ -96,7 +106,7 @@ class Analyzer(object):
         chunks = self.chunks_generator(items, chunk_size)
         # Create threads poll and start analyzing.
         pool = multiprocessing.pool.ThreadPool(processes=threads_number)
-        total_count: int = 0
+        total_count = 0
         # Collect results.
         func = partial(target_func, self)
         time1 = datetime.today()
@@ -114,6 +124,8 @@ class Analyzer(object):
                 last_log_time = time2
                 self.logger.info("%d/%d analyzed in %s. Remains about %s.", completed, items_count, time2 - time1,
                                  estimate)
+        if not is_prs:
+            self.positive_number += total_count
         return total_count
 
     def clean_handlers(self):
@@ -157,7 +169,7 @@ def analyze_raw_comments(analyzer: Analyzer, rcs: []) -> int:
                 continue
         records_number += 1
     if analyzer.is_dump_by_chunks:
-        analyzer.flush_handlers(analyzer.logger)
+        analyzer.flush_handlers()
     return records_number
 
 
@@ -190,5 +202,5 @@ def analyze_pull_requests(analyzer: Analyzer, prs: []) -> int:
             file_records_number, _ = analyze_git_file(common_handler, type_to_handler_dict, git_file)
             records_number += file_records_number
     if analyzer.is_dump_by_chunks:
-        analyzer.flush_handlers(analyzer.logger)
+        analyzer.flush_handlers()
     return records_number

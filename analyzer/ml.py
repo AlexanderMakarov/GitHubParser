@@ -8,6 +8,8 @@ from model.pull_request import PullRequest
 from analyzer.git_diff_parser import parse_git_diff
 from analyzer.analyzer import Analyzer, analyze_git_file
 from analyzer.records_handler import RecordsHandler
+from analyzer.records_producer import is_vocabulary_feature
+from analyzer.csv_worker import get_vocabulary_csv_path, get_record_info_from_train, read_analyzer_info, AnalyzerInfo
 from analyzer.git_dao import *
 import os
 
@@ -39,16 +41,30 @@ class Prediction:  # Should be placed in list to have indexes same as lines in P
         return result
 
 
+def get_tf_feature_columns(net_type: RecordType):
+    records_number, features_number, features = get_record_info_from_train(net_type.name)
+    tf_features = np.ndarray(shape=features_number)
+    for i, feature in enumerate(features):
+        if is_vocabulary_feature(feature):
+            vocabulary_csv_path = get_vocabulary_csv_path(feature)
+            num_lines = sum(1 for _ in open(vocabulary_csv_path))
+            tf_features[i] = tf.feature_column.categorical_column_with_vocabulary_file(
+                key=feature, vocabulary_file=vocabulary_csv_path, vocabulary_size=num_lines)
+        else:
+            tf_features[i] = tf.feature_column.numeric_column(feature)
+    return tf_features
+
+
 class MachineLearning:
     net_keepers: dict
     log_handler: Handler
     analyzer: Analyzer
-    raw_comments_number: int
+    analyzer_info: AnalyzerInfo
 
-    def __init__(self, analyzer: Analyzer, log_handler: Handler, raw_comments_number: int):
+    def __init__(self, analyzer: Analyzer, log_handler: Handler):
         self.analyzer = analyzer
         self.log_handler = log_handler
-        self.raw_comments_number = raw_comments_number
+        self.analyzer_info = read_analyzer_info()
         self.net_keepers = dict()
         for record_type in analyzer.get_supported_types():
             self.net_keepers.update(self.get_net_for_type(record_type))
@@ -58,18 +74,17 @@ class MachineLearning:
             return self.net_keepers[net_type]
         else:
             # Build network.
-            # Add logs handler to TensorFlow.
+            # Add logs handler to TensorFlow if not added yet.
             logger = tf.logging._logger
             if self.log_handler and self.log_handler not in logger.handlers:
                 logger.addHandler(self.log_handler)
-            # Get feature columns and feature names from record files.
-            feature_columns, feature_names = NetKeeper.get_feature_columns(net_type)
             # Build DNNClassifier, i.e. network.
+            feature_columns = get_tf_feature_columns(net_type)
             classifier = tf.estimator.DNNClassifier(feature_columns=feature_columns,
                                                     hidden_units=[5000],  # TODO magic numbers
-                                                    n_classes=self.raw_comments_number,
+                                                    n_classes=self.classes_number,
                                                     model_dir=os.path.join(instance_path, net_type.value + "_model"))
-            keeper = NetKeeper(net_type, classifier, self.raw_comments_number)
+            keeper = NetKeeper(net_type, classifier, self.classes_number)
             self.net_keepers[net_type] = keeper
             return keeper
 
@@ -79,10 +94,12 @@ class MachineLearning:
         type_to_handler_dict = self.analyzer.type_to_handler_dict
         pre_predictions = type_to_handler_dict.get(RecordType.GIT)
         records_with_type = []
+        common_handler = type_to_handler_dict.get(RecordType.GIT)
         for git_file in git_files:
             git_file: GitFile
-            file_records_number, record_type = analyze_git_file(pre_predictions, type_to_handler_dict, git_file)
-            handler: RecordsHandler = type_to_handler_dict.get(record_type)
+            file_records_number, file_type = analyze_git_file(pre_predictions, type_to_handler_dict, git_file)
+            handler: RecordsHandler = type_to_handler_dict.get(file_type, common_handler)
+            record_type = handler.record_type
             lines = []
             for piece in git_file.pieces:
                 piece: GitPiece

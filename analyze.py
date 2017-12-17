@@ -20,6 +20,7 @@ if __name__ == '__main__':
     parser.add_argument('--chunks', action='store_true',
                         help='Flag to flush records by chunks. It allows to reduce RAM load but slows down analyzing'
                              ' speed more than 2 times.')
+    parser.add_argument("--train-ratio", type=float, default=0.8, help="Train-test separation ratio.")
     args = parser.parse_args()
 
     # Connect db.
@@ -54,7 +55,7 @@ if __name__ == '__main__':
     time4 = datetime.today()
     logger.info("Got %d records due %d pull requests analyzing in %s.", pr_records_count, len(prs),
                 time4 - time3)
-    analyzer.finalize(logger)
+    analyzer.finalize(args.train_ratio)
     records_count = rc_records_count + pr_records_count
     time5 = datetime.today()
     logger.info("Dumped %d records in %s.", records_count, time5 - time4)
