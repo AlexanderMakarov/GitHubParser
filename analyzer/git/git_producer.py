@@ -5,7 +5,7 @@ from analyzer.records_producer import Features, RecordsProducer
 
 
 class GitFeatures(Features):
-    __slots__ = Features.__slots__ + ['GIT_LINE_TYPE', 'GIT_PIECES_NUMBER', 'GIT_LINE_LENGTH', 'V_GIT_FILE']
+    __slots__ = Features.__slots__ + ('GIT_LINE_TYPE', 'GIT_PIECES_NUMBER', 'GIT_LINE_LENGTH', 'V_GIT_FILE',)
 
 
 class GitRecordsProducer(RecordsProducer):

@@ -13,7 +13,7 @@ class RecordsHandler(object):
     Keep records of one type during analyzing and dump records to file(s).
     Use specified 'RecordsProducer' to obtain and specified 'FileDumper' to dump records of one type.
     """
-    __slots__ = ['record_type', 'producer', 'file_dumper', '_records']
+    __slots__ = ('record_type', 'producer', 'file_dumper', '_records',)
 
     def __init__(self, producer: RecordsProducer, file_dumper: FileDumper):
         self.record_type = producer.record_type

@@ -28,7 +28,7 @@ class Analyzer(object):
     3. To analyze something else without affecting to/from previously analyzed records call 'clean_handlers' first,
         next see steps above.
     """
-    __slots__ = ['logger', 'type_to_handler_dict', 'is_dump_by_chunks', 'flushed_records_number', 'positive_number']
+    __slots__ = ('logger', 'type_to_handler_dict', 'is_dump_by_chunks', 'flushed_records_number', 'positive_number',)
 
     def __init__(self, logger: Logger, is_dump_by_chunks: bool, *args):
         self.logger = logger

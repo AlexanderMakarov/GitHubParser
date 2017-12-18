@@ -1,20 +1,17 @@
-from enum import Enum
 import os
 
 
-# TODO convert all into slots.
+class GitLineType(object):
+    __slots__ = ('ADD', 'UNCHANGED', 'REMOVE',)
+
+    def __init__(self):
+        self.ADD = 1
+        self.UNCHANGED = 0
+        self.REMOVE = -1
 
 
-class GitLineType(Enum):
-    ADD = 1
-    UNCHANGED = 0
-    REMOVE = -1
-
-
-class GitLine:
-    type: GitLineType
-    line: str
-    features: None
+class GitLine(object):
+    __slots__ = ('type', 'line', 'features',)
 
     def __init__(self, line: str):
         first_char = line[0:1]
@@ -31,13 +28,12 @@ class GitLine:
 
 def parse_file_type(file_path: str):
     _, file_extension = os.path.splitext(file_path)
-    for file_type in FileType:
-        if file_extension == file_type.value:
-            return file_type
-    return FileType.UNSUPPORTED
+    return next((x for x in FileType.__slots__ if getattr(FileType, x) == file_extension), FileType.UNSUPPORTED)
 
 
-class GitPiece:
+class GitPiece(object):
+    __slots__ = ('from_line', 'from_lines', 'to_line', 'to_lines', 'parent_line', 'lines',)
+
     def __init__(self, from_line: int, from_lines: int, to_line: int, to_lines: int, parent_line: str, lines = []):
         self.from_line = from_line
         self.from_lines = from_lines
@@ -47,17 +43,22 @@ class GitPiece:
         self.lines = lines
 
 
-class FileType(Enum):
-    UNSUPPORTED = ""
-    XML = ".xml"
-    JAVASCRIPT = ".js"
-    PYTHON = ".py"
-    SWIFT = ".swift"
-    SH_SCRIPT = ".sh"
-    CONFIG = ".cfg"
+class FileType(object):
+    __slots__ = ('UNSUPPORTED', 'XML', 'JAVASCRIPT', 'PYTHON', 'SWIFT', 'SH_SCRIPT', 'CONFIG',)
+
+    def __init__(self):
+        self.UNSUPPORTED = ""
+        self.XML = ".xml"
+        self.JAVASCRIPT = ".js"
+        self.PYTHON = ".py"
+        self.SWIFT = ".swift"
+        self.SH_SCRIPT = ".sh"
+        self.CONFIG = ".cfg"
 
 
-class GitFile:
+class GitFile(object):
+    __slots__ = ('file_path', 'file_name', 'file_type', 'index_line', 'pieces',)
+
     def __init__(self, file_path: str, index_line: str, pieces: [GitPiece]):
         self.file_path = file_path
         self.file_name = os.path.basename(file_path)

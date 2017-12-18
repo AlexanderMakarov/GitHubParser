@@ -11,10 +11,10 @@ class Features(object):
     """
     Base class for features. All fields are features names.
     Each field is 'int' type with index of related feature in record.
-    Should be extended with `__slots__ = Features.__slots__ + ['FOO']`.
+    Should be extended with `__slots__ = Features.__slots__ + ('FOO',)`.
     Vocabulary based features should have "V_" prefix.
     """
-    __slots__ = ['RC_ID']
+    __slots__ = ('RC_ID',)
 
     def __init__(self):
         counter = 0
@@ -36,7 +36,7 @@ class RecordsProducer(object):
     Also it handles vocabulary-based features. See `add_vocabulary_feature_value` method.
     To override. Keep in mind that amount of time required for analyzing very depends from this class implementation.
     """
-    __slots__ = ['record_type', 'features', 'features_number', 'vocabulary_features']
+    __slots__ = ('record_type', 'features', 'features_number', 'vocabulary_features',)
 
     def __init__(self, record_type: RecordType, features: Features):
         self.record_type = record_type
