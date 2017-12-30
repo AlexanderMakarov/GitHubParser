@@ -42,16 +42,19 @@ class Prediction:  # Should be placed in list to have indexes same as lines in P
 
 
 def get_tf_feature_columns(net_type: RecordType):
-    records_number, features_number, features = get_record_info_from_train(net_type.name)
-    tf_features = np.ndarray(shape=features_number)
-    for i, feature in enumerate(features):
+    records_number, values_number, features = get_record_info_from_train(net_type.name)
+    tf_features = []
+    for i in range(1, len(features)):  # First column is RC_ID and it is not a feature.
+        feature = features[i]
+        if i == 0:
+            continue
         if is_vocabulary_feature(feature):
             vocabulary_csv_path = get_vocabulary_csv_path(feature)
             num_lines = sum(1 for _ in open(vocabulary_csv_path))
-            tf_features[i] = tf.feature_column.categorical_column_with_vocabulary_file(
-                key=feature, vocabulary_file=vocabulary_csv_path, vocabulary_size=num_lines)
+            tf_features.append(tf.feature_column.categorical_column_with_vocabulary_file(
+                key=feature, vocabulary_file=vocabulary_csv_path, vocabulary_size=num_lines))
         else:
-            tf_features[i] = tf.feature_column.numeric_column(feature)
+            tf_features.append(tf.feature_column.numeric_column(feature, dtype=tf.int16))
     return tf_features
 
 
@@ -67,7 +70,7 @@ class MachineLearning:
         self.analyzer_info = read_analyzer_info()
         self.net_keepers = dict()
         for record_type in analyzer.get_supported_types():
-            self.net_keepers.update(self.get_net_for_type(record_type))
+            self.net_keepers[record_type] = self.get_net_for_type(record_type)
 
     def get_net_for_type(self, net_type: RecordType):
         if net_type in self.net_keepers:
@@ -82,9 +85,9 @@ class MachineLearning:
             feature_columns = get_tf_feature_columns(net_type)
             classifier = tf.estimator.DNNClassifier(feature_columns=feature_columns,
                                                     hidden_units=[5000],  # TODO magic numbers
-                                                    n_classes=self.classes_number,
-                                                    model_dir=os.path.join(instance_path, net_type.value + "_model"))
-            keeper = NetKeeper(net_type, classifier, self.classes_number)
+                                                    n_classes=self.analyzer_info.classes_number,
+                                                    model_dir=os.path.join(instance_path, net_type.name + "_model"))
+            keeper = NetKeeper(net_type, classifier)
             self.net_keepers[net_type] = keeper
             return keeper
 
@@ -117,9 +120,9 @@ class MachineLearning:
         return records_with_type
 
     def train(self, steps_number: int):
-        for net_keeper in self.net_keepers:
+        for net_keeper in self.net_keepers.values():
             net_keeper: NetKeeper
-            net_keeper.train_net(steps_number)
+            net_keeper.train_net(self.analyzer_info, steps_number)
 
     def predict(self, pr: PullRequest) -> list:  # List of Prediction-s.
         # Analyze lines from PR into records.

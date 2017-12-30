@@ -68,7 +68,7 @@ class FileDumper:  # Don't use csv_writer because it appends to file by line (sl
         np_array = np.asarray(records)
         np.savetxt(self.file_path, np_array, fmt="%d", delimiter=",")
 
-    def write_head(self, flushed_records_number: int, feature_names: list):  # Also closes file.
+    def write_head(self, flushed_records_number: int, feature_names: list):  # TODO remove as not used.
         names = [str(flushed_records_number), str(len(feature_names))] + feature_names
         head_row = ",".join(names) + "\n"
         # https://stackoverflow.com/questions/5914627/prepend-line-to-beginning-of-a-file

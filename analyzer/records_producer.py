@@ -46,7 +46,7 @@ class RecordsProducer(object):
         self.vocabulary_features.fill(None)
 
     def get_feature_names(self) -> list:
-        return [k for k in self.features.__slots__]
+        return [k for k in self.features.__slots__][1:]  # First name - name of output class.
 
     def get_row_container(self) -> np.ndarray:
         """
