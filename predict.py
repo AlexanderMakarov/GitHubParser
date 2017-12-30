@@ -19,7 +19,8 @@ if __name__ == '__main__':
     # Parse command line arguments.
     parser = argparse.ArgumentParser(description='Trains networks on prepared (analyzed) records and predicts specified'
                                                  ' PR comments.')
-    parser.add_argument('steps_count', type=int, nargs='?', default=100, help='Train steps count for all networks.')
+    parser.add_argument('steps_number', type=int, nargs='?', default=100,
+                        help='Train steps number for networks all file types.')
     parser.add_argument('pr', type=int, nargs='?', default=1311, help='Pull Request to predict.')
     args = parser.parse_args()
 
@@ -39,7 +40,7 @@ if __name__ == '__main__':
     ml = MachineLearning(analyzer, None)
     # Train network.
     time1 = datetime.today()
-    ml.train(args.steps_count)
+    ml.train(args.steps_number)
     time2 = datetime.today()
     logger.info("Trained network in %s.", time2 - time1)
     # Predict PR lines.

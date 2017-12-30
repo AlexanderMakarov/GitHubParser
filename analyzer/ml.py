@@ -46,13 +46,12 @@ def get_tf_feature_columns(net_type: RecordType):
     tf_features = []
     for i in range(1, len(features)):  # First column is RC_ID and it is not a feature.
         feature = features[i]
-        if i == 0:
-            continue
         if is_vocabulary_feature(feature):
             vocabulary_csv_path = get_vocabulary_csv_path(feature)
             num_lines = sum(1 for _ in open(vocabulary_csv_path))
-            tf_features.append(tf.feature_column.categorical_column_with_vocabulary_file(
-                key=feature, vocabulary_file=vocabulary_csv_path, vocabulary_size=num_lines))
+            categorical_column = tf.feature_column.categorical_column_with_vocabulary_file(
+                key=feature, vocabulary_file=vocabulary_csv_path, vocabulary_size=num_lines)
+            tf_features.append(tf.feature_column.embedding_column(categorical_column, dimension=1))
         else:
             tf_features.append(tf.feature_column.numeric_column(feature, dtype=tf.int16))
     return tf_features
@@ -84,7 +83,7 @@ class MachineLearning:
             # Build DNNClassifier, i.e. network.
             feature_columns = get_tf_feature_columns(net_type)
             classifier = tf.estimator.DNNClassifier(feature_columns=feature_columns,
-                                                    hidden_units=[5000],  # TODO magic numbers
+                                                    hidden_units=[100],  # TODO magic number(s)
                                                     n_classes=self.analyzer_info.classes_number,
                                                     model_dir=os.path.join(instance_path, net_type.name + "_model"))
             keeper = NetKeeper(net_type, classifier)
