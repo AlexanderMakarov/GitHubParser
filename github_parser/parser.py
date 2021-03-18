@@ -29,7 +29,7 @@ def get_pull_requests(logger: Logger, username: str, password: str, repo_name: s
     required_time = 30 if count < 0 else 0.03 * count  # 0.03 - rough time for one pull request.
     logger.info("Wait about %d seconds to get data about all pull requests in %s repo, ratelimit_remaining=%d", \
             required_time, repo_name, repo.ratelimit_remaining)
-    return repo, list(repo.pull_requests(state="all", number=count))
+    return repo, list(repo.iter_pulls(state="all", number=count))
 
 
 def get_raw_comments_from_pr(pr):

@@ -1,17 +1,21 @@
-from flask import render_template, request, url_for
-from flask_appbuilder.models.sqla.interface import SQLAInterface
-from flask_appbuilder import AppBuilder, ModelView, expose, BaseView, has_access, action
-from webapp import appbuilder, app, db
 from datetime import datetime
-from github_parser.parser import get_pull_requests_from_github, fetch_pr_from_github
-from analyzer.analyzer import analyze_items
-from model.raw_comment import RawComment
-from model.pull_request import PullRequest
-from model.comment import Comment
-import os
-import random
 from logging import Handler
 from threading import Thread
+
+from flask import render_template, request, url_for
+from flask_appbuilder import ModelView, expose, BaseView, has_access
+from flask_appbuilder.models.sqla.interface import SQLAInterface
+
+from analyzer.analyzer import parse_git_diff
+from analyzer.ml_dnn import train_net, parse_and_dump_features, NetType, predict
+from analyzer.swift.swift_parser import SwiftParser
+from github_parser.parser import get_pull_requests_from_github, fetch_pr_from_github
+# from model.rcclass import RCClass
+from model.comment import Comment
+from model.git_data import GitLineType
+from model.pull_request import PullRequest
+from model.raw_comment import RawComment
+from webapp import appbuilder, app, db
 
 
 class HomeView(BaseView):
@@ -81,6 +85,8 @@ class FetchView(BaseWithLogs):
 
     def fetch(self, number):
         self.init_logs_keeper()
+        self.progress_stage = 1
+        app.logger.info("START: Fetch %d pull requests.", number)
         time1 = datetime.today()
         # Fetch data from GitHub.
         pull_requests = get_pull_requests_from_github(app.logger, app.config['ACCOUNTS'], app.config['REPO'],
@@ -112,7 +118,7 @@ class FetchView(BaseWithLogs):
                 pr.diff = pr_with_updates.diff
                 pr.raw_comments = pr_with_updates.raw_comments
             session.commit()
-        app.logger.info("Saved %d pull requests into database (%d inserted, %d updated)",\
+        app.logger.info("END: Saved %d pull requests into database (%d inserted, %d updated)",\
                 resulting_count, len(pull_requests_to_insert), len(pull_requests_to_update_numbers))
         # Notify 'fetch_log' that process over.
         self.progress_stage = 2
@@ -130,35 +136,161 @@ class AnalyzeView(BaseWithLogs):
     @has_access
     @expose("", methods=['POST'])
     def analyze_with_params(self):
-        count = -1  # '-1' means "all".
-        pr = -1
-        if 'count' in request.form:
-            count = int(request.form['count'])
-        if 'pr' in request.form:
-            pr = int(request.form['pr'])
-        thread = Thread(name="analyze", target=AnalyzeView.analyze, args=[self, count, pr])
+        rcs_number = -1  # '-1' means "all".
+        prs_number = -1
+        train_part = 0.8
+        if 'rcs_number' in request.form:
+            rcs_number = int(request.form['rcs_number'])
+        if 'prs_number' in request.form:
+            prs_number = int(request.form['prs_number'])
+        if 'train_part' in request.form:
+            train_part = float(request.form['train_part'])
+            if train_part < 0 or train_part > 1.0:
+                app.logger.warning("Wrong train_part=%d", train_part)
+                return "Wrong train_part=%d" % train_part
+        thread = Thread(name="analyze", target=AnalyzeView.analyze, args=[self, rcs_number, prs_number, train_part])
         thread.start()
-        return "analyze: count=%d pr=%d" % (count, pr)
+        return "train: rcs_number=%d prs_number=%d train_part=%d" % (rcs_number, prs_number, train_part)
 
-    def analyze(self, count: int, pr_number: int):
+    def analyze(self, rcs_number: int, prs_number: int, train_part: float):
         self.init_logs_keeper()
         self.progress_stage = 1
-        # Choose what to analyze.
+        app.logger.info("START: Analyze %d raw comments and %d pull requests. Records will be split train/test=%d.",
+                        rcs_number, prs_number, train_part)
         time1 = datetime.today()
-        if pr_number > 0:
-            pr = db.session.query(PullRequest).filter(PullRequest.number == pr_number).first()
-            result = analyze_items(app.logger, [pr], os.cpu_count())
-            # TODO complete. Show with http://flask-appbuilder.readthedocs.io/en/latest/generic_datasource.html
-            time2 = datetime.today()
-            app.logger.info("Analyzed %d pull request in %s seconds", pr_number, time2 - time1)
-        else:
-            raw_comments = db.session.query(RawComment).limit(count).all()
-            result = analyze_items(app.logger, raw_comments, os.cpu_count())
-            # TODO complete. Show with http://flask-appbuilder.readthedocs.io/en/latest/generic_datasource.html
-            time2 = datetime.today()  # Now it is a place for breakpoint.
-            app.logger.info("Analyzed %d raw comments in %s seconds",\
-                    len(raw_comments), time2 - time1)
-        # Notify 'analyze_log' that process over.
+        # Use all RCs.
+        raw_comments = db.session.query(RawComment).limit(rcs_number).all()
+        # Use only closed PRs.
+        prs = db.session.query(PullRequest).filter(PullRequest.state == "closed").limit(prs_number).all()
+        time2 = datetime.today()
+        app.logger.info("Load %d raw comments and %d pull requests in %s seconds.", len(raw_comments), len(prs),
+                        time2 - time1)
+        parse_and_dump_features(app.logger, raw_comments, prs, train_part)
+        time3 = datetime.today()
+        app.logger.info("END: Analyzed %d raw comments and %d pull request in %s seconds.", len(raw_comments), len(prs),
+                        time3 - time2)
+        self.progress_stage = 2
+        return "done"
+
+    @has_access
+    @expose("/log")
+    def analyze_log(self):
+        return self.get_logs()
+
+
+class ParseView(BaseWithLogs):
+    route_base = "/parse"
+
+    @has_access
+    @expose("", methods=['POST'])
+    def parse_with_params(self):
+        count = -1  # '-1' means "all".
+        if 'count' in request.form:
+            count = int(request.form['count'])
+
+        thread = Thread(name="parse", target=ParseView.parse, args=[self, count])
+        thread.start()
+        return "parse: count=%d" % count
+
+    def parse(self, count: int):
+        self.init_logs_keeper()
+        self.progress_stage = 1
+        time1 = datetime.today()
+        raw_comments = db.session.query(RawComment).limit(count).all()
+        parsed_count = 0
+        pr = db.session.query(PullRequest).filter(PullRequest.number == count).first()
+        rcs_number = db.session.query(RawComment).count()
+        predict(self.logs_keeper, NetType.XML, pr, rcs_number)
+
+        time2 = datetime.today()
+        app.logger.info("Analyzed %d raw comments from %d in %s seconds", parsed_count, len(raw_comments), time2 - time1)
+
+        return "done"
+
+    @has_access
+    @expose("/log")
+    def parse_log(self):
+        return self.get_logs()
+
+class ParseSwiftView(BaseWithLogs):
+    route_base = "/parseSwift"
+
+    @has_access
+    @expose("", methods=['POST'])
+    def parse_with_params(self):
+        count = -1  # '-1' means "all".
+        if 'count' in request.form:
+            count = int(request.form['count'])
+
+        thread = Thread(name="parse_swift", target=ParseSwiftView.parse_swift, args=[self, count])
+        thread.start()
+        return "parse_swift: count=%d" % count
+
+    def parse_swift(self, count: int):
+        self.init_logs_keeper()
+        self.progress_stage = 1
+        time1 = datetime.today()
+        raw_comments = db.session.query(RawComment).limit(count).all()
+        parsed_count = 0
+        for rc in raw_comments:
+            if rc.path[-5:] == 'swift':
+                parsed_count += 1
+                lines_arr = []
+                git_files = parse_git_diff(rc.diff_hunk, rc.path)
+                assert len(git_files) == 1, "parse_git_diff returns not 1 GitFile"
+                for file in git_files:
+                    assert len(file.pieces) == 1, "git file has more than 1 piece"
+                    for piece in file.pieces:
+                        last_line_type = piece.lines[len(piece.lines) - 1].type
+                        for line in piece.lines:
+                            if line.type == GitLineType.UNCHANGED or line.type == last_line_type:
+                                lines_arr.append(line.line)
+                parser = SwiftParser()
+                parsed_results = parser.parse(lines_arr)
+                app.logger.info(str(parsed_results[-1:][0]))
+
+        time2 = datetime.today()
+        app.logger.info("Analyzed %d raw comments from %d in %s seconds", parsed_count, len(raw_comments), time2 - time1)
+
+        return "done"
+
+    @has_access
+    @expose("/log")
+    def parse_swift_log(self):
+        return self.get_logs()
+
+
+
+class TrainView(BaseWithLogs):
+    route_base = "/train"
+
+    @has_access
+    @expose("", methods=['POST'])
+    def analyze_with_params(self):
+        steps_count = 100
+        if 'steps_count' in request.form:
+            steps_count = int(request.form['steps_count'])
+        thread = Thread(name="train", target=TrainView.train, args=[self, steps_count])
+        thread.start()
+        return "train: steps_count=%d" % steps_count
+
+    def train(self, steps_count: int):
+        self.init_logs_keeper()
+        self.progress_stage = 1
+        app.logger.info("START: Train assistant in %d steps.", steps_count)
+        rcs_number = db.session.query(RawComment).count()
+        time1 = datetime.today()
+        app.logger.info("Start train assistant in %d steps.", steps_count)
+        # for net in [NetType.XML, NetType.SWIFT, NetType.ANY]:
+        for net in [NetType.XML, NetType.ANY]:
+            time_start = datetime.today()
+            app.logger.info("Start train %s network in %d steps.", net.value, steps_count)
+            train_net(self.logs_keeper, net, rcs_number, steps_count)
+            time_end = datetime.today()
+            app.logger.info("Trained %s network using in %s seconds.", net.value, time_end - time_start)
+        time2 = datetime.today()
+        app.logger.info("END: Trained using %d steps in %s seconds. Code review helper is ready for assist!",
+                        steps_count, time2 - time1)
         self.progress_stage = 2
         return "done"
 
@@ -237,11 +369,12 @@ class SiteMapView(BaseView):
 
 
 db.create_all()
-appbuilder.add_view_no_menu(PullRequestView())
-appbuilder.add_view(RawCommentView, "List fetched comments", category="Raw Comments")
-appbuilder.add_view(CommentView, "List Comments", category="Comments")
-appbuilder.add_view(PullRequestsView, "List Pull Requests", category="Pull Requests")
+appbuilder.add_view(RawCommentView, "List fetched comments", category="GitHub data")
+appbuilder.add_view(PullRequestsView, "List Pull Requests", category="GitHub data")
 appbuilder.add_view_no_menu(PullRequestView)
 appbuilder.add_view_no_menu(FetchView)
 appbuilder.add_view_no_menu(AnalyzeView)
+appbuilder.add_view_no_menu(TrainView)
 appbuilder.add_view_no_menu(SiteMapView)
+appbuilder.add_view_no_menu(ParseView)
+appbuilder.add_view_no_menu(ParseSwiftView)

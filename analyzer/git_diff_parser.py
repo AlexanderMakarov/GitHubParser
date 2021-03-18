@@ -1,5 +1,5 @@
 import re
-from model.git_data import GitFile, GitLine, GitPiece
+from analyzer.git_dao import *
 
 
 DIFF_DIFF_RE = re.compile("diff --git a/(.+?)( b/)(.*)")
@@ -15,7 +15,7 @@ def parse_git_diff_diff_line(line: str):
     return None
 
 
-DIFF_POSITION_RE = re.compile("@@ -(\d+),(\d+) \+(\d+),(\d+) @@ (.*)")
+DIFF_POSITION_RE = re.compile("@@ -(\d+),(\d+) \+(\d+),(\d+) @@(.*)")
 
 
 def parse_git_diff_position_line(line: str):
@@ -25,7 +25,7 @@ def parse_git_diff_position_line(line: str):
     match = DIFF_POSITION_RE.match(line)
     if match and len(match.groups()) == 5:
         return GitPiece(int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4)), \
-                        match.group(5))
+                        match.group(5), [])
     return None
 
 
@@ -38,6 +38,7 @@ def parse_git_diff(diff: str, path_if_diff_hunk: str):
     """
     # git_lines_counter format:
     # 5: diff, 4: index, 3: ---, 2: +++, 1: @@ (position), 0: regular line of patch.
+    lines = []
     if diff.startswith("b'"):
         diff = diff[2:-1]  # Trim "bytestring" format like [b'foo'] -> [foo]
         lines = diff.split('\\n')
