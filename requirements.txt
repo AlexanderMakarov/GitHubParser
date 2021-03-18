@@ -3,4 +3,4 @@ flask-appbuilder
 pygments
 # Possible need to execute 'pip3 install --upgrade tensorflow' on Windows.
 # On Windows 7 wants "Microsoft Visual C++ 2015 Redistributable Update 3" (will show in log).
-tensorflow==1.4.0
+tensorflow==2.4.0
