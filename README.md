@@ -26,3 +26,12 @@ Most important tasks:
 - [ ] Increase features parsing time. Use paralleling on threads. Append datd to CSV files if possible.
 - [ ] Add ability to save and teach net with features based on enums (set of words).
 - [ ] Implement **GitHub** Pull Request page (overlay for iframe or other way to do code review with tips from app).
+
+"Analyze" shows/saves in db nothing for now. Need to complete.
+
+Most important tasks (hackaton objectives):
+
+- [ ] Complete Pull Request page. Now for debug, not for code review
+- [ ] Implement connection with TensorFlow (load data from sqlite)
+- [ ] Complete analyzer (search features in diff_hunk-s and PR patches)
+- [ ] Implement **GitHub** Pull Request page (overlay for iframe or other way to do code review with tips from app)
